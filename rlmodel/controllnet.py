@@ -148,9 +148,7 @@ class StyleExpert(object):
         self.style_actor.load_state_dict(torch.load(model_path + "_actor.pt"))
 
 
-if __name__ == "__main__":
-    pass
-        
+
 
 
 

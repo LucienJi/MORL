@@ -4,7 +4,7 @@ import os
 import random
 import time
 from distutils.util import strtobool
-from  controllnet import Expert
+from  rlmodel.controllnet import Expert
 import gym 
 from envs import StyledCartPoleEnv,CartPole_Factors
 import numpy as np
