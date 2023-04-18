@@ -3,3 +3,4 @@
 *.txt
 wandb/
 runs/
+videos/

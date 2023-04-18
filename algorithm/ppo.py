@@ -12,16 +12,22 @@ import mo_gymnasium as mo_gym
 from algorithm.utils import make_styled_env,generate_reward_factors
 
 class Learner(object):
-    def __init__(self,args,env_id,factors:dict,allow_retrain) -> None:
+    def __init__(self,args,env_id,factors:dict) -> None:
         self.args = args 
         self.env_id = env_id
         env = mo_gym.make(env_id)
         self.obs_dim,self.act_dim = env.observation_space.shape[0],env.action_space.n
         self.factors = factors #! dictionary, predefine the bounds of each factor
         self.style_dim = len(self.factors.keys())
-        self.agent = StyleExpert(self.obs_dim,self.act_dim,self.style_dim,parent=None,allow_retrain=allow_retrain)
-        self.pi_optimizer = optim.Adam(self.agent.style_actor.parameters(), lr=self.args.learning_rate, eps=1e-5)
-        self.v_optimizer = optim.Adam(self.agent.style_critic.parameters(), lr=self.args.learning_rate, eps=1e-5)
+        if self.args.use_mas:
+            print("################### Using MAS ###################")
+            self.agent = StyleExpert(self.obs_dim,self.act_dim,self.style_dim,parent=None,allow_retrain=self.args.allow_retrain)
+        else:
+            print("################### Using Expert ###################")
+            self.agent = Expert(self.obs_dim,self.act_dim)
+        self.use_mas = self.args.use_mas
+        self.pi_optimizer = optim.Adam(self.agent.actor.parameters(), lr=self.args.learning_rate, eps=1e-5)
+        self.v_optimizer = optim.Adam(self.agent.critic.parameters(), lr=self.args.learning_rate, eps=1e-5)
         self.device = torch.device(args.device)
         self.agent.to(self.device)
         self.num_envs = self.args.num_envs
@@ -187,8 +193,8 @@ class Learner(object):
                 self.pi_optimizer.zero_grad()
                 self.v_optimizer.zero_grad()
                 loss.backward()
-                nn.utils.clip_grad_norm_(self.agent.style_critic.parameters(), args.max_grad_norm)
-                nn.utils.clip_grad_norm_(self.agent.style_actor.parameters(), args.max_grad_norm)
+                nn.utils.clip_grad_norm_(self.agent.critic.parameters(), args.max_grad_norm)
+                nn.utils.clip_grad_norm_(self.agent.actor.parameters(), args.max_grad_norm)
                 self.pi_optimizer.step()
                 self.v_optimizer.step()
 
@@ -213,7 +219,7 @@ class Learner(object):
         self.writer.add_scalar("charts/SPS", int(self.global_step / (time.time() - self.start_time)), self.global_step)
 
     def _init_track(self):
-        run_name = f"{self.env_id}__{self.args.exp_name}__{self.args.seed}__{int(time.time())}"
+        run_name = f"{self.env_id}__{self.args.exp_name}__{int(time.time())}"
         if self.args.track:
             import wandb
 
@@ -238,10 +244,16 @@ class Learner(object):
         torch.manual_seed(seed)
         torch.backends.cudnn.deterministic = self.args.torch_deterministic
 
-    def save(self, save_path, save_name):
-        self.agent.save(save_path,save_name)
-    def load(self, load_path, load_name):
-        self.agent.load(load_path,load_name)
+    def save(self, save_path = None):
+        if save_path is None:
+            self.agent.save(self.args.model_path)
+        else:
+            self.agent.save(save_path)
+    def load(self, load_path = None):
+        if load_path is None:
+            self.agent.load(self.args.model_path)
+        else:
+            self.agent.load(load_path)
 
 
 

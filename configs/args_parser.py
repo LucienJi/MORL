@@ -7,8 +7,7 @@ from distutils.util import strtobool
 def parse_args():
     # fmt: off
     parser = argparse.ArgumentParser()
-    parser.add_argument("--description", type=str, default="MAS")
-    parser.add_argument("--exp_name", type=str, default='CodeTest',
+    parser.add_argument("--exp_name", type=str, default='MAS',
         help="the name of this experiment")
     parser.add_argument("--seed", type=int, default=1,
         help="seed of the experiment")
@@ -21,6 +20,8 @@ def parse_args():
         help="the wandb's project name")
     parser.add_argument("--wandb-entity", type=str, default='jingtianji',
         help="the entity (team) of wandb's project")
+    parser.add_argument("--use_mas", type=bool, default=True,)
+    parser.add_argument("--allow_retrain", type=bool, default=True,)
 
     # Algorithm specific arguments
     parser.add_argument("--total_timesteps", type=int, default=10000,
@@ -61,7 +62,7 @@ def parse_args():
 
 
 class Parameters(object):
-    def __init__(self,config_path = None,save_path = None):
+    def __init__(self,env_id,config_path = None,save_path = "logs"):
         #! parameter priotity: config file > command line
         args = parse_args()
         args = args._get_kwargs()
@@ -74,15 +75,18 @@ class Parameters(object):
             for k,newvalue in loaded_config.items():
                 default_config[k] = newvalue
         self.args = default_config
-        self.short_name = self.args.get('description','Test')
-        self.json_name = self.short_name + '.json'
+        self.args['env_id'] = env_id
+        self.short_name = self.args['env_id'] + '_' +self.args.get('exp_name','Test')
+        self.json_name = 'parameter.json'
 
         self.apply_vars(self.args)
-
+        self.save_path =  os.path.join(save_path,self.short_name)
         if save_path is not None:
-            self.save_config(save_path)
+            self.save_config(self.save_path)
+        self.model_path = self.save_path
 
     def save_config(self,path):
+        
         if not os.path.exists(path):
             os.makedirs(path)
         with open(os.path.join(path, self.json_name), 'w') as f:
