@@ -14,14 +14,14 @@ def parse_args():
     parser.add_argument("--torch-deterministic", type=bool, default=True,
         help="if toggled, `torch.backends.cudnn.deterministic=False`")
     parser.add_argument("--device", type=str,default='cuda:3')
-    parser.add_argument("--track", type=bool, default=False,
+    parser.add_argument("--track", type=lambda x: bool(strtobool(x)), default=False,
         help="if toggled, this experiment will be tracked with Weights and Biases")
     parser.add_argument("--wandb-project-name", type=str, default="my-test-project",
         help="the wandb's project name")
     parser.add_argument("--wandb-entity", type=str, default='jingtianji',
         help="the entity (team) of wandb's project")
-    parser.add_argument("--use_mas", type=bool, default=True,)
-    parser.add_argument("--allow_retrain", type=bool, default=True,)
+    parser.add_argument("--use_mas", type=lambda x: bool(strtobool(x)), default=True,)
+    parser.add_argument("--allow_retrain", type=lambda x: bool(strtobool(x)), default=True,)
 
     # Algorithm specific arguments
     parser.add_argument("--total_timesteps", type=int, default=10000,

@@ -1,7 +1,7 @@
 # docs and experiment results can be found at https://docs.cleanrl.dev/rl-algorithms/ppo/#ppopy
 import random
 import time
-from  rlmodel.controllnet import StyleExpert,Expert
+from  rlmodel.controlnet import StyleExpert,Expert
 import gymnasium as gym
 import numpy as np
 import torch

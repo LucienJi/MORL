@@ -4,7 +4,7 @@ import os
 import random
 import time
 from distutils.util import strtobool
-from  rlmodel.controllnet import StyleExpert,Expert
+from  rlmodel.controlnet import StyleExpert,Expert
 import gym 
 from envs import StyledLunarLander,LunarLander_Factors,StyledCartPoleEnv,CartPole_Factors
 import numpy as np
