@@ -21,7 +21,7 @@ class Learner(object):
         self.style_dim = len(self.factors.keys())
         if self.args.use_mas:
             print("################### Using MAS ###################")
-            self.agent = StyleExpert(self.obs_dim,self.act_dim,self.style_dim,parent=None,allow_retrain=self.args.allow_retrain)
+            self.agent = StyleExpert(self.obs_dim,self.act_dim,self.style_dim,allow_retrain=self.args.allow_retrain)
         else:
             print("################### Using Expert ###################")
             self.agent = Expert(self.obs_dim,self.act_dim)
@@ -215,7 +215,7 @@ class Learner(object):
         self.writer.add_scalar("losses/approx_kl", approx_kl.item(), self.global_step)
         self.writer.add_scalar("losses/clipfrac", np.mean(clipfracs), self.global_step)
         self.writer.add_scalar("losses/explained_variance", explained_var, self.global_step)
-        print("SPS:", int(self.global_step / (time.time() - self.start_time)))
+        # print("SPS:", int(self.global_step / (time.time() - self.start_time)))
         self.writer.add_scalar("charts/SPS", int(self.global_step / (time.time() - self.start_time)), self.global_step)
 
     def _init_track(self):

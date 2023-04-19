@@ -96,6 +96,7 @@ class ControlNet(nn.Module):
             x = self.net.forward(x,extra_input)
         else:
             x = self.net.forward(x)
+        x = self.output_layer(x)
         return x
     def separete_save(self,path,name):
         if not os.path.exists(path):
@@ -106,6 +107,8 @@ class ControlNet(nn.Module):
     def load(self,path,name):
         self.net.load_state_dict(torch.load(path + f"/{name}_block.pt"))
         self.output_layer.load_state_dict(torch.load(path + f"/{name}_outlayer.pt"))
+        if self.use_mas:
+            self.net._set_parameter()
     def load_expert(self,path,name):
         if not self.use_mas:
             return 

@@ -7,7 +7,7 @@ if __name__ == '__main__':
     # env_id = 'mo-lunar-lander-v2'
     para = Parameters(env_id=env_id,config_path=None)
     learner = Learner(para,env_id=env_id,factors=Factor_dictionary[env_id])
-    learner.agent.load_expert(path="logs/logs/deep-sea-treasure-v0_expert")
+    learner.agent.load_expert(path="logs/deep-sea-treasure-v0_code_test")
     learner.learn(para.total_timesteps,para.num_steps)
     learner.save()
     
