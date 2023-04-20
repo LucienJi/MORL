@@ -48,8 +48,18 @@ class ControlBlock(nn.Module):
         self.locked_block = Block(input_dim,output_dim,hidden_size)
 
         ##TODO 改动1： zero layer 需要 state or style 的信息
-        self.zero_layer1 = nn.Linear(extra_input_dim + input_dim,input_dim)
-        self.zero_layer2 = nn.Linear(output_dim + extra_input_dim,output_dim)
+        # self.zero_layer1 = nn.Linear(extra_input_dim + input_dim,input_dim)
+        self.zero_layer1 = nn.Sequential(
+            nn.Linear(extra_input_dim + input_dim,hidden_size[0]),
+            nn.LeakyReLU(),
+            nn.Linear(hidden_size[0],input_dim)
+        )
+        # self.zero_layer2 = nn.Linear(output_dim + extra_input_dim,output_dim)
+        self.zero_layer2 = nn.Sequential(
+            nn.Linear(output_dim + extra_input_dim,hidden_size[0]),
+            nn.LeakyReLU(),
+            nn.Linear(hidden_size[0],output_dim)
+        )
         self.allow_retrain = allow_retrain
         self.init()
         self._set_parameter()
@@ -121,7 +131,7 @@ class ControlNet(nn.Module):
             self.net = ControlBlock(input_dim,hidden_size[-1],extra_input_dim = extra_input_dim,hidden_size=hidden_size,allow_retrain = allow_retrain)
         else:
             self.net = Block(input_dim,hidden_size[-1],hidden_size = hidden_size)
-        self.output_layer = nn.Linear(hidden_size[-1],output_dim)
+        self.output_layer = nn.Linear(hidden_size[-1],output_dim) # 这一部分也是 trainable 的
     def forward(self,x,extra_input = None):
         if self.use_mas:
             x = self.net.forward(x,extra_input)

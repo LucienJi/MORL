@@ -21,8 +21,8 @@ class MO_Analysis(object):
         self.style_dim = len(self.factors.keys())
         if self.args.use_mas:
             print("################### Using MAS ###################")
-            # self.agent = StyleExpert(self.obs_dim,self.act_dim,self.style_dim,allow_retrain=self.args.allow_retrain)
-            self.agent = MLPStyleExpert(self.obs_dim,self.act_dim,self.style_dim)
+            self.agent = StyleExpert(self.obs_dim,self.act_dim,self.style_dim,allow_retrain=self.args.allow_retrain)
+            # self.agent = MLPStyleExpert(self.obs_dim,self.act_dim,self.style_dim)
         else:
             print("################### Using Expert ###################")
             self.agent = Expert(self.obs_dim,self.act_dim)

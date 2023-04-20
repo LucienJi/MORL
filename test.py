@@ -8,13 +8,13 @@ if __name__ == '__main__':
     # env_id = 'minecart-v0'
     para = Parameters(env_id=env_id,config_path=None)
     learner = Learner(para,env_id=env_id,factors=Factor_dictionary[env_id])
-    # if hasattr(learner.agent, 'load_expert'):
-    #     learner.agent.load_expert(path="logs/minecart-v0_expert")
-    # learner.learn(para.total_timesteps,para.num_steps)
-    # learner.save()
+    if hasattr(learner.agent, 'load_expert'):
+        learner.agent.load_expert(path="logs/deep-sea-treasure-v0_expert")
+    learner.learn(para.total_timesteps,para.num_steps)
+    learner.save()
 
     mo_analysis = MO_Analysis(para,env_id,Factor_dictionary[env_id])
-    mo_analysis.load("logs/deep-sea-treasure-v0_mlp_style")
+    mo_analysis.load()
     # style_states = [
     #     [0.5,0.5,0.0,0.5],
     #     [0.5,0.5,0.5,0.5],
@@ -26,6 +26,6 @@ if __name__ == '__main__':
         style_states.append(tmp)
 
     if hasattr(learner, 'writer'):
-        mo_analysis.mas_eval(5000,50,style_states,learner.writer)  
+        mo_analysis.mas_eval(5000,10,style_states,learner.writer)  
     else:
-        mo_analysis.mas_eval(5000,50,style_states,None)  
+        mo_analysis.mas_eval(5000,10,style_states,None)  

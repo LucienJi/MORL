@@ -21,8 +21,8 @@ class Learner(object):
         self.style_dim = len(self.factors.keys())
         if self.args.use_mas:
             print("################### Using MAS ###################")
-            # self.agent = StyleExpert(self.obs_dim,self.act_dim,self.style_dim,allow_retrain=self.args.allow_retrain)
-            self.agent = MLPStyleExpert(self.obs_dim,self.act_dim,self.style_dim)
+            self.agent = StyleExpert(self.obs_dim,self.act_dim,self.style_dim,allow_retrain=self.args.allow_retrain)
+            # self.agent = MLPStyleExpert(self.obs_dim,self.act_dim,self.style_dim)
         else:
             print("################### Using Expert ###################")
             self.agent = Expert(self.obs_dim,self.act_dim)
@@ -169,11 +169,19 @@ class Learner(object):
                     mb_advantages = (mb_advantages - mb_advantages.mean()) / (mb_advantages.std() + 1e-8)
 
                 # Policy loss
-                pg_loss1 = -mb_advantages * ratio
-                pg_loss2 = -mb_advantages * torch.clamp(ratio, 1 - args.clip_coef, 1 + args.clip_coef)
-                pg_loss = torch.max(pg_loss1, pg_loss2).mean()
+                if epoch % args.pi_update_frq == 0:
+                    self.pi_optimizer.zero_grad()
+                    pg_loss1 = -mb_advantages * ratio
+                    pg_loss2 = -mb_advantages * torch.clamp(ratio, 1 - args.clip_coef, 1 + args.clip_coef)
+                    pg_loss = torch.max(pg_loss1, pg_loss2).mean()
+                    entropy_loss = entropy.mean()
+                    pg_loss = pg_loss - args.ent_coef * entropy_loss
+                    pg_loss.backward()
+                    nn.utils.clip_grad_norm_(self.agent.actor.parameters(), args.max_grad_norm)
+                    self.pi_optimizer.step()
 
                 # Value loss
+                self.v_optimizer.zero_grad()
                 newvalue = newvalue.view(-1)
                 if args.clip_vloss:
                     v_loss_unclipped = (newvalue - b_returns[mb_inds]) ** 2
@@ -188,15 +196,9 @@ class Learner(object):
                 else:
                     v_loss = 0.5 * ((newvalue - b_returns[mb_inds]) ** 2).mean()
 
-                entropy_loss = entropy.mean()
-                loss = pg_loss - args.ent_coef * entropy_loss + v_loss * args.vf_coef
-
-                self.pi_optimizer.zero_grad()
-                self.v_optimizer.zero_grad()
-                loss.backward()
+                v_loss = v_loss * args.vf_coef
+                v_loss.backward()
                 nn.utils.clip_grad_norm_(self.agent.critic.parameters(), args.max_grad_norm)
-                nn.utils.clip_grad_norm_(self.agent.actor.parameters(), args.max_grad_norm)
-                self.pi_optimizer.step()
                 self.v_optimizer.step()
 
             if args.target_kl is not None:
