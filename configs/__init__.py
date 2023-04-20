@@ -10,16 +10,16 @@ Four_Room_v0 = {
 }
 
 Minecart_v0 = {
-    'ore1':{"lower_bound": 0, "upper_bound": 2, "fine_grit": 0.5},
-    'ore2':{"lower_bound": 0, "upper_bound": 2, "fine_grit": 0.5},
-    'fuel':{"lower_bound": 0, "upper_bound": 2, "fine_grit": 0.5}
+    'ore1':{"lower_bound": 1, "upper_bound": 1, "fine_grit": 0.5},
+    'ore2':{"lower_bound": 1, "upper_bound": 1, "fine_grit": 0.5},
+    'fuel':{"lower_bound": 1, "upper_bound": 1, "fine_grit": 0.5}
 }
 
 LunarLander_v2 = {
     'landed':{"lower_bound": 1, "upper_bound": 1, "fine_grit": 0.5},
-    'shaped_reward':{"lower_bound": 1, "upper_bound": 1, "fine_grit": 0.5},
-    'main_engine_fuel':{"lower_bound": 1, "upper_bound": 1, "fine_grit": 0.5},
-    'side_engine_fuel':{"lower_bound": 1, "upper_bound": 1, "fine_grit": 0.5}
+    'shaped_reward':{"lower_bound": 0, "upper_bound": 2, "fine_grit": 0.5},
+    'main_engine_fuel':{"lower_bound": 0, "upper_bound": 2, "fine_grit": 0.5},
+    'side_engine_fuel':{"lower_bound": 0, "upper_bound": 2, "fine_grit": 0.5}
 }
 
 

@@ -46,8 +46,10 @@ class ControlBlock(nn.Module):
         #! trainable and locked block must has the same size 
         self.trainable_block = Block(input_dim,output_dim,hidden_size)
         self.locked_block = Block(input_dim,output_dim,hidden_size)
-        self.zero_layer1 = nn.Linear(extra_input_dim,input_dim)
-        self.zero_layer2 = nn.Linear(output_dim,output_dim)
+
+        ##TODO 改动1： zero layer 需要 state or style 的信息
+        self.zero_layer1 = nn.Linear(extra_input_dim + input_dim,input_dim)
+        self.zero_layer2 = nn.Linear(output_dim + extra_input_dim,output_dim)
         self.allow_retrain = allow_retrain
         self.init()
         self._set_parameter()
@@ -64,11 +66,19 @@ class ControlBlock(nn.Module):
                 constant_init(m,val=0.0)
 
     def forward(self,x,extra_input):
-        delta_x = self.zero_layer1(extra_input)
+        input1 = torch.cat([x,extra_input],dim = 1)
+        delta_x = self.zero_layer1(input1)
         x_ = x + delta_x
-        delta_y = self.zero_layer2(self.trainable_block.forward(x_))
-        y_ = self.locked_block.forward(x) + delta_y
-        return y_
+        y_ = self.trainable_block.forward(x_)
+        input2 = torch.cat([y_,extra_input],dim = 1)
+        delta_y = self.zero_layer2(input2)
+        return self.trainable_block(x) + delta_y
+    # def forward(self,x,extra_input):
+    #     delta_x = self.zero_layer1(extra_input)
+    #     x_ = x + delta_x
+    #     delta_y = self.zero_layer2(self.trainable_block.forward(x_))
+    #     y_ = self.locked_block.forward(x) + delta_y
+    #     return y_
     
     def load_expert_state_dict(self,state_dict):
         self.locked_block.load_state_dict(state_dict)
@@ -79,6 +89,27 @@ class ControlBlock(nn.Module):
         with torch.no_grad():
             for p in self.locked_block.parameters():
                 p.requires_grad = self.allow_retrain 
+class MLPNet(nn.Module):
+    def __init__(self,input_dim,output_dim,hidden_size = [256,256],extra_input_dim = 0):
+        super().__init__()
+        self.net = Block(input_dim= input_dim + extra_input_dim,output_dim = hidden_size[-1],hidden_size = hidden_size)
+        self.output_layer = nn.Linear(hidden_size[-1],output_dim)
+    def forward(self,x,extra_input = None):
+        if extra_input is not None:
+            x = torch.cat([x,extra_input],dim = 1)
+        x = self.net.forward(x)
+        x = self.output_layer(x)
+        return x
+    
+    def separete_save(self,path,name):
+        if not os.path.exists(path):
+            os.makedirs(path)
+        torch.save(self.net.state_dict(),path + f"/{name}_block.pt")
+        torch.save(self.output_layer.state_dict(),path + f"/{name}_outlayer.pt")
+
+    def load(self,path,name):
+        self.net.load_state_dict(torch.load(path + f"/{name}_block.pt"))
+        self.output_layer.load_state_dict(torch.load(path + f"/{name}_outlayer.pt"))
 
 class ControlNet(nn.Module):
     #! 存储的时候，state dict 分为 net 和 outlayer，，load expert state dict 的时候需要将 net 的 state dict 分给两个 block
@@ -184,7 +215,35 @@ class StyleExpert(object):
         self.critic.load(path,"critic")
         self.actor.load(path,"actor")
 
+class MLPStyleExpert(object):
+    def __init__(self,obs_dim,act_dim,style_dim) -> None:
+        obs_dim,act_dim = obs_dim,act_dim
+        self.critic = MLPNet(obs_dim,1,hidden_size=[256,256],extra_input_dim = style_dim)
+        self.actor = MLPNet(obs_dim,act_dim,hidden_size=[256,256],extra_input_dim = style_dim)
+        
+    def to(self,device):
+        self.actor.to(device)
+        self.critic.to(device)
+        return self
+    def get_value(self, x,style):
+        return self.critic(x,style)
 
+    def get_action_and_value(self, x,style, action=None):
+        logits = self.actor(x,style)
+        probs = Categorical(logits=logits)
+        if action is None:
+            action = probs.sample()
+        return action, probs.log_prob(action), probs.entropy(), self.critic(x,style)
+
+    def save(self,path):
+        if not os.path.exists(path):
+            os.makedirs(path)
+        self.critic.separete_save(path,"critic")
+        self.actor.separete_save(path,"actor")
+    def load(self,path):
+        assert os.path.exists(path)
+        self.critic.load(path,"critic")
+        self.actor.load(path,"actor")
 
 
 

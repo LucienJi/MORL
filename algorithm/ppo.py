@@ -1,7 +1,7 @@
 # docs and experiment results can be found at https://docs.cleanrl.dev/rl-algorithms/ppo/#ppopy
 import random
 import time
-from  rlmodel.controlnet import StyleExpert,Expert
+from  rlmodel.controlnet import StyleExpert,Expert,MLPStyleExpert
 import gymnasium as gym
 import numpy as np
 import torch
@@ -21,7 +21,8 @@ class Learner(object):
         self.style_dim = len(self.factors.keys())
         if self.args.use_mas:
             print("################### Using MAS ###################")
-            self.agent = StyleExpert(self.obs_dim,self.act_dim,self.style_dim,allow_retrain=self.args.allow_retrain)
+            # self.agent = StyleExpert(self.obs_dim,self.act_dim,self.style_dim,allow_retrain=self.args.allow_retrain)
+            self.agent = MLPStyleExpert(self.obs_dim,self.act_dim,self.style_dim)
         else:
             print("################### Using Expert ###################")
             self.agent = Expert(self.obs_dim,self.act_dim)
@@ -219,7 +220,7 @@ class Learner(object):
         self.writer.add_scalar("charts/SPS", int(self.global_step / (time.time() - self.start_time)), self.global_step)
 
     def _init_track(self):
-        run_name = f"{self.env_id}__{self.args.exp_name}__{int(time.time())}"
+        run_name = f"{self.env_id}__{self.args.exp_name}"
         if self.args.track:
             import wandb
 
@@ -232,7 +233,7 @@ class Learner(object):
                 monitor_gym=True,
                 save_code=True,
             )
-        self.writer = SummaryWriter(f"runs/{run_name}")
+        self.writer = SummaryWriter(f"{self.args.save_path}/{run_name}")
         self.writer.add_text(
             "hyperparameters",
             "|param|value|\n|-|-|\n%s" % ("\n".join([f"|{key}|{value}|" for key, value in vars(self.args).items()])),
