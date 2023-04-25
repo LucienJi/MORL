@@ -48,18 +48,18 @@ class ControlBlock(nn.Module):
         self.locked_block = Block(input_dim,output_dim,hidden_size)
 
         ##TODO 改动1： zero layer 需要 state or style 的信息
-        # self.zero_layer1 = nn.Linear(extra_input_dim + input_dim,input_dim)
-        self.zero_layer1 = nn.Sequential(
-            nn.Linear(extra_input_dim + input_dim,hidden_size[0]),
-            nn.LeakyReLU(),
-            nn.Linear(hidden_size[0],input_dim)
-        )
-        # self.zero_layer2 = nn.Linear(output_dim + extra_input_dim,output_dim)
-        self.zero_layer2 = nn.Sequential(
-            nn.Linear(output_dim + extra_input_dim,hidden_size[0]),
-            nn.LeakyReLU(),
-            nn.Linear(hidden_size[0],output_dim)
-        )
+        self.zero_layer1 = nn.Linear(extra_input_dim + input_dim,input_dim)
+        # self.zero_layer1 = nn.Sequential(
+        #     nn.Linear(extra_input_dim + input_dim,hidden_size[0]),
+        #     nn.LeakyReLU(),
+        #     nn.Linear(hidden_size[0],input_dim)
+        # )
+        self.zero_layer2 = nn.Linear(output_dim + extra_input_dim,output_dim)
+        # self.zero_layer2 = nn.Sequential(
+        #     nn.Linear(output_dim + extra_input_dim,hidden_size[0]),
+        #     nn.LeakyReLU(),
+        #     nn.Linear(hidden_size[0],output_dim)
+        # )
         self.allow_retrain = allow_retrain
         self.init()
         self._set_parameter()
@@ -160,10 +160,10 @@ class ControlNet(nn.Module):
 
 
 class Expert(object):
-    def __init__(self,obs_dim,act_dim) -> None:
+    def __init__(self,obs_dim,act_dim,hidden_size = [256,256]) -> None:
         obs_dim,act_dim = obs_dim,act_dim
-        self.critic = ControlNet(obs_dim,1,hidden_size=[256,256],use_mas = False,extra_input_dim = 0,allow_retrain = True)
-        self.actor = ControlNet(obs_dim,act_dim,hidden_size=[256,256],use_mas = False,extra_input_dim = 0,allow_retrain = True)
+        self.critic = ControlNet(obs_dim,1,hidden_size=hidden_size,use_mas = False,extra_input_dim = 0,allow_retrain = True)
+        self.actor = ControlNet(obs_dim,act_dim,hidden_size=hidden_size,use_mas = False,extra_input_dim = 0,allow_retrain = True)
     def get_value(self, x,style):
         return self.critic(x)
 
@@ -189,10 +189,10 @@ class Expert(object):
 
 
 class StyleExpert(object):
-    def __init__(self,obs_dim,act_dim,style_dim,allow_retrain) -> None:
+    def __init__(self,obs_dim,act_dim,style_dim,allow_retrain,hidden_size =[256,256]) -> None:
         obs_dim,act_dim = obs_dim,act_dim
-        self.critic = ControlNet(obs_dim,1,hidden_size=[256,256],use_mas = True,extra_input_dim = style_dim,allow_retrain = allow_retrain)
-        self.actor = ControlNet(obs_dim,act_dim,hidden_size=[256,256],use_mas = True,extra_input_dim = style_dim,allow_retrain = allow_retrain)
+        self.critic = ControlNet(obs_dim,1,hidden_size=hidden_size,use_mas = True,extra_input_dim = style_dim,allow_retrain = allow_retrain)
+        self.actor = ControlNet(obs_dim,act_dim,hidden_size=hidden_size,use_mas = True,extra_input_dim = style_dim,allow_retrain = allow_retrain)
         
     def to(self,device):
         self.actor.to(device)

@@ -24,13 +24,13 @@ def parse_args():
     parser.add_argument("--allow_retrain", type=lambda x: bool(strtobool(x)), default=False,)
 
     # Algorithm specific arguments
-    parser.add_argument("--total_timesteps", type=int, default=1000000,
+    parser.add_argument("--total_timesteps", type=int, default=5000000,
         help="total timesteps of the experiments")
     parser.add_argument("--learning-rate", type=float, default=2.5e-4,
         help="the learning rate of the optimizer")
-    parser.add_argument("--num_envs", type=int, default=16,
+    parser.add_argument("--num_envs", type=int, default=32,
         help="the number of parallel game environments")
-    parser.add_argument("--num_steps", type=int, default=512,
+    parser.add_argument("--num_steps", type=int, default=128,
         help="the number of steps to run in each environment per policy rollout")
     parser.add_argument("--anneal-lr", type=bool, default=True,
         help="Toggle learning rate annealing for policy and value networks")
@@ -49,11 +49,11 @@ def parse_args():
         help="the surrogate clipping coefficient")
     parser.add_argument("--clip-vloss", type=bool, default=False,
         help="Toggles whether or not to use a clipped loss for the value function, as per the paper.")
-    parser.add_argument("--ent-coef", type=float, default=0.01,
+    parser.add_argument("--ent-coef", type=float, default=0.02,
         help="coefficient of the entropy")
     parser.add_argument("--vf-coef", type=float, default=0.5,
         help="coefficient of the value function")
-    parser.add_argument("--max-grad-norm", type=float, default=10.0,
+    parser.add_argument("--max-grad-norm", type=float, default=0.5,
         help="the maximum norm for the gradient clipping")
     parser.add_argument("--target-kl", type=float, default=None,
         help="the target KL divergence threshold")
