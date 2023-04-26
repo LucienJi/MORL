@@ -253,7 +253,7 @@ class VStyleExpert(object):
         return self
 
 class VMLPStyleExpert(object):
-    def __init__(self,obs_dim,act_dim,reward_dim,style_dim,allow_retrain = False,hidden_size = [256,256]):
+    def __init__(self,obs_dim,act_dim,reward_dim,style_dim,hidden_size = [256,256]):
         obs_dim,act_dim,reward_dim = int(obs_dim),int(act_dim),int(reward_dim)
         self.critic = VMLPNet(obs_dim,reward_dim,hidden_size,extra_input_dim=style_dim)
         self.actor = MLPNet(obs_dim,act_dim,hidden_size,extra_input_dim=style_dim)
