@@ -19,11 +19,12 @@ class VLearner(object):
         self.factors = factors #! dictionary, predefine the bounds of each factor
         self.style_dim = len(self.factors.keys())
         self.reward_dim = self.style_dim 
-        if self.args.use_mas:
-            print("################### Using MAS ###################")
+        if self.args.use_mas and model_name != 'expert':
             if model_name == 'mlp':
+                print("################### Using MLP ###################")
                 self.agent = VMLPStyleExpert(self.obs_dim,self.act_dim,self.reward_dim,self.style_dim)
             else:
+                print("################### Using MAS ###################")
                 self.agent = VStyleExpert(self.obs_dim,self.act_dim,self.reward_dim,
                                           self.style_dim,allow_retrain=self.args.allow_retrain)
         else:
@@ -103,7 +104,7 @@ class VLearner(object):
             with torch.no_grad():
                 action, logprob, _, value = self.agent.get_action_and_value(self.next_obs,self.style_states)
                 #! 这里的 value 是 (bz,style)
-                values[step] = value.flatten()
+                values[step] = value
             actions[step] = action
             logprobs[step] = logprob
 
@@ -111,11 +112,16 @@ class VLearner(object):
             next_obs, reward, done,truncted, info = self.envs.step(action.cpu().numpy())
             #! 这里我们记录 reward vector 以及当时使用的 reward weights，这里
             reward_vectors = []
-            for i in range(len(info['vector_reward'])):
-                if info['vector_reward'][i] is not None:
-                    reward_vectors.append(info['vector_reward'][i])
-                else:
-                    reward_vectors.append(info['final_info'][i]['vector_reward'])
+            if "vector_reward" in info.keys():
+                for i in range(len(info['vector_reward'])):
+                    if info['vector_reward'][i] is not None:
+                        reward_vectors.append(info['vector_reward'][i])
+                    else:
+                        reward_vectors.append(info['final_info'][i]['vector_reward'])
+            else:
+                info = info['final_info']
+                for i in range(len(info)):
+                    reward_vectors.append(info[i]['vector_reward'])
             reward_vectors = np.stack(reward_vectors,axis=0)
             reward_vectors = torch.from_numpy(reward_vectors).float().to(device)
             rewards[step] = reward_vectors
@@ -143,8 +149,9 @@ class VLearner(object):
                 else:
                     nextnonterminal = 1.0 - dones[t + 1]
                     nextvalues = values[t + 1]
-                delta = rewards[t] + args.gamma * nextvalues * nextnonterminal - values[t]
-                advantages[t] = lastgaelam = delta + args.gamma * args.gae_lambda * nextnonterminal * lastgaelam
+                #print("reward shape:",rewards[t].shape,"nextvalues shape:",nextvalues.shape,"nextnonterminal shape:",nextnonterminal.shape,"values shape:",values[t].shape)
+                delta = rewards[t] + args.gamma * nextvalues * nextnonterminal.unsqueeze(-1) - values[t]
+                advantages[t] = lastgaelam = delta + args.gamma * args.gae_lambda * nextnonterminal.unsqueeze(-1) * lastgaelam
             returns = advantages + values
         rollout_result = {
             'obs':obs,'styles':styles,'weights':weights,'actions':actions,'logprobs':logprobs,'values':values,'advantages':advantages,'returns':returns
