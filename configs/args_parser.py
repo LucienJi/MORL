@@ -24,7 +24,7 @@ def parse_args():
     parser.add_argument("--allow_retrain", type=lambda x: bool(strtobool(x)), default=False,)
 
     # Algorithm specific arguments
-    parser.add_argument("--total_timesteps", type=int, default=2000000,
+    parser.add_argument("--total_timesteps", type=int, default=200000,
         help="total timesteps of the experiments")
     parser.add_argument("--learning-rate", type=float, default=2.5e-4,
         help="the learning rate of the optimizer")

@@ -9,7 +9,7 @@ import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
 import mo_gymnasium as mo_gym
 from algorithm.utils import make_styled_env,generate_reward_factors
-
+from algorithm.utils import Factor_Sampler
 class VLearner(object):
     def __init__(self,args,env_id,factors:dict,model_name = 'controlnet') -> None:
         self.args = args 
@@ -36,10 +36,34 @@ class VLearner(object):
         self.device = torch.device(args.device)
         self.agent.to(self.device)
         self.num_envs = self.args.num_envs
-        self.reset_envs()
+        
         self._set_seed(args.seed)
         self.global_step = 0
         self.start_time = time.time()
+        self.sampler = Factor_Sampler(self.factors)
+
+        #! 使用新版 reset_envs_v2
+        # self.reset_envs()
+        self.reset_envs_v2()
+    def reset_envs_v2(self):
+        env_list = []
+        self.reward_factors = []
+        self.style_states = []
+        reward_factors,style_states = self.sampler.generate_reward_factors(self.num_envs)
+        self.list_reward_weights = reward_factors
+        self.list_style_states = style_states
+        for i,weight in enumerate(reward_factors):
+            env_list.append(make_styled_env(self.env_id,self.args.seed + i,weight))
+        self.envs =  gym.vector.SyncVectorEnv(env_list)
+        self.envs = gym.wrappers.RecordEpisodeStatistics(self.envs)
+        self.reward_factors = np.array(reward_factors)
+        self.style_states = np.array(style_states)
+        self.style_states = torch.from_numpy(self.style_states).float().to(self.device)
+        self.reward_factors = torch.from_numpy(self.reward_factors).float().to(self.device)
+        ## reset the envs
+        self.next_obs,info = self.envs.reset() 
+        self.next_obs = torch.Tensor(self.next_obs).to(self.device)
+        self.next_done = torch.zeros(self.num_envs).to(self.device)
 
     def reset_envs(self):
         env_list = []
@@ -50,6 +74,8 @@ class VLearner(object):
             env_list.append(make_styled_env(self.env_id,self.args.seed+i,reward_factor_list))
             self.reward_factors.append(reward_factor)
             self.style_states.append(np.array(style_state))
+        self.list_reward_weights = self.reward_factors
+        self.list_style_states =  self.style_states
         self.envs =  gym.vector.SyncVectorEnv(env_list)
         self.envs = gym.wrappers.RecordEpisodeStatistics(self.envs)
         ## transform the style states into tensor
@@ -62,8 +88,9 @@ class VLearner(object):
         self.next_obs = torch.Tensor(self.next_obs).to(self.device)
         self.next_done = torch.zeros(self.num_envs).to(self.device)
 
-    def learn(self,total_timesteps,num_steps,reset_env_freq = 5):
+    def learn(self,total_timesteps,num_steps,reset_env_freq = 2):
         self._init_track()
+        update_weight_freq = 5
         batch_size = num_steps * self.num_envs
         num_updates = total_timesteps // batch_size
         
@@ -76,10 +103,16 @@ class VLearner(object):
                 self.pi_optimizer.param_groups[0]["lr"] = lrnow
                 self.v_optimizer.param_groups[0]["lr"] = lrnow
             
+            #! 在新版本中，我们可以尝试增加 reset 的频率，这样可以保证更多的 styles 得到 return 测试
             if update % reset_env_freq == 0:
-                self.reset_envs() ## reset the reward factors and style states 
+                #! 使用新版 reset_envs_v2
+                # self.reset_envs() ## reset the reward factors and style states 
+                self.reset_envs_v2()
             rollout_results = self.rollout(num_steps=num_steps,num_envs=self.num_envs,device=self.device)
             self.update(**rollout_results)
+            
+            if update % update_weight_freq == 0:
+                self.sampler.update_weights()
 
     def rollout(self,num_steps,num_envs,device):
         #! 主要是修改了：增加 weight 和 vector reward 的收集；计算向量化的 return 和 adv
@@ -92,6 +125,9 @@ class VLearner(object):
         rewards = torch.zeros((num_steps, num_envs) + (self.reward_dim,)).to(device)
         dones = torch.zeros((num_steps, num_envs)).to(device)
         values = torch.zeros((num_steps, num_envs) + (self.reward_dim,)).to(device)
+
+        #! 为了收集 vector return 
+        vector_return = np.zeros((num_envs,self.reward_dim))
 
         # TRY NOT TO MODIFY: start the game
         for step in range(0, num_steps):
@@ -119,13 +155,16 @@ class VLearner(object):
                     else:
                         reward_vectors.append(info['final_info'][i]['vector_reward'])
             else:
-                info = info['final_info']
-                for i in range(len(info)):
-                    reward_vectors.append(info[i]['vector_reward'])
+                for i in range(len(info['final_info'])):
+                    reward_vectors.append(info['final_info'][i]['vector_reward'])
+            
+
             reward_vectors = np.stack(reward_vectors,axis=0)
+            #! 这里默认累加多环境的 vector rewards
+            vector_return += reward_vectors
             reward_vectors = torch.from_numpy(reward_vectors).float().to(device)
             rewards[step] = reward_vectors
-            weights[step] = self.reward_weights
+            weights[step] = self.reward_factors
 
             self.next_obs, self.next_done = torch.Tensor(next_obs).to(device), torch.Tensor(done).to(device)
 
@@ -134,6 +173,9 @@ class VLearner(object):
                     if terminate:
                         self.writer.add_scalar("charts/episodic_return", info['episode']['r'][i], self.global_step)
                         self.writer.add_scalar("charts/episodic_length", info['episode']['l'][i], self.global_step)
+                        #! 更新当前 权重下的 return 
+                        self.sampler.update_returns(self.list_reward_weights[i],vector_return[i])
+                        vector_return[i] = np.zeros(self.reward_dim)
                     
 
         # bootstrap value if not done 

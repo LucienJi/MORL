@@ -166,11 +166,11 @@ class VControlNet_v2(nn.Module):
         if not os.path.exists(path):
             os.makedirs(path)
         torch.save(self.net.state_dict(),path + f"/{name}_block.pt")
-        torch.save(self.output_layers.state_dict(),path + f"/{name}_outlayer.pt")
+        torch.save(self.output_layers.state_dict(),path + f"/{name}_outlayers.pt")
 
     def load(self,path,name):
         self.net.load_state_dict(torch.load(path + f"/{name}_block.pt"))
-        self.output_layers.load_state_dict(torch.load(path + f"/{name}_outlayer.pt"))
+        self.output_layers.load_state_dict(torch.load(path + f"/{name}_outlayers.pt"))
         if self.use_mas:
             self.net._set_parameter()
     def load_expert(self,path,name):
@@ -178,7 +178,7 @@ class VControlNet_v2(nn.Module):
             return 
         expert_block_state_dict = torch.load(path + f"/{name}_block.pt")
         self.net.load_expert_state_dict(expert_block_state_dict)
-        self.output_layers.load_state_dict(torch.load(path + f"/{name}_outlayer.pt"))
+        self.output_layers.load_state_dict(torch.load(path + f"/{name}_outlayers.pt"))
         self.net._set_parameter()
 
 
@@ -186,7 +186,7 @@ class VControlNet_v2(nn.Module):
 class VExpert(object):
     def __init__(self,obs_dim,act_dim,reward_dim,hidden_size = [256,256]):
         obs_dim,act_dim,reward_dim = int(obs_dim),int(act_dim),int(reward_dim)
-        self.critic = VControlNet(obs_dim,reward_dim,hidden_size = hidden_size,use_mas = False,)
+        self.critic = VControlNet_v2(obs_dim,reward_dim,hidden_size = hidden_size,use_mas = False,)
         self.actor = ControlNet(obs_dim,act_dim,hidden_size = hidden_size,use_mas = False)
     
     def get_value(self,x,style,weights = None):
@@ -216,7 +216,7 @@ class VExpert(object):
 class VStyleExpert(object):
     def __init__(self,obs_dim,act_dim,reward_dim,style_dim,allow_retrain = False,hidden_size = [256,256]):
         obs_dim,act_dim,reward_dim = int(obs_dim),int(act_dim),int(reward_dim)
-        self.critic = VControlNet(obs_dim,reward_dim,hidden_size = hidden_size,
+        self.critic = VControlNet_v2(obs_dim,reward_dim,hidden_size = hidden_size,
                                   use_mas = True,
                                   extra_input_dim = style_dim,
                                   allow_retrain = allow_retrain)
