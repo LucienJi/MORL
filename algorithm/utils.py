@@ -51,6 +51,45 @@ def generate_reward_factors(factors:dict,seed = 0):
         style_state.append(style_value)
     return reward_factors_list, reward_factors,style_state
 
+def non_dominated_sort(rewards):
+    """
+    input: rewards (N,dim)
+    output: rank (N,)
+    """
+    N = len(rewards)
+    rank = np.zeros(N,dtype=np.int32)
+    rank_dict = dict()
+    S = [[] for _ in range(N)]
+    n = np.zeros(N,dtype=np.int32)
+    rank_dict[1] = []
+    for p in range(N):
+        for q in range(N):
+            if np.all(rewards[p] >= rewards[q]) and np.any(rewards[p] > rewards[q]):
+                ## p dominates q 
+                if q not in S[p]:
+                    S[p].append(q)
+            elif np.all(rewards[p] <= rewards[q]) and np.any(rewards[p] < rewards[q]):
+                ## q dominates p, to note 可以存在两个element 不是相互 dominate 的情况
+                n[p] += 1
+        if n[p] == 0:
+            rank[p] = 1
+            rank_dict[1].append(p)
+            if p not in S[p]: #! 没觉得应该加这句 
+                S[p].append(p)
+    i = 1
+    while np.any(rank == i):
+        Q = []
+        for p in range(N):
+            if rank[p] == i:
+                for q in S[p]:
+                    n[q] -= 1 #! 这里假如 S[p] 中的元素是 p 自身，那么 n[q] 会被减两次，这里应该加一个判断
+                    if n[q] == 0: #! 这里 n[p] = -1  了
+                        rank[q] = i + 1
+                        if q not in Q:
+                            Q.append(q)
+        i += 1
+        rank_dict[i] = Q
+    return rank,rank_dict
 class Factor_Sampler(object):
     def __init__(self,factors:dict) -> None:
         self.factors = factors
