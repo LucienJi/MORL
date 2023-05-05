@@ -15,21 +15,26 @@ class VLearner(object):
         self.args = args 
         self.env_id = env_id
         env = mo_gym.make(env_id)
-        self.obs_dim,self.act_dim = env.observation_space.shape[0],env.action_space.n
+        continous = isinstance(env.action_space,gym.spaces.Box)
+        if not continous:
+            self.obs_dim,self.act_dim = env.observation_space.shape[0],env.action_space.n
+        else:
+            self.obs_dim,self.act_dim = env.observation_space.shape[0],env.action_space.shape[0]
         self.factors = factors #! dictionary, predefine the bounds of each factor
+        self.factor_name = list(factors.keys())
         self.style_dim = len(self.factors.keys())
         self.reward_dim = self.style_dim 
         if self.args.use_mas and model_name != 'expert':
             if model_name == 'mlp':
                 print("################### Using MLP ###################")
-                self.agent = VMLPStyleExpert(self.obs_dim,self.act_dim,self.reward_dim,self.style_dim)
+                self.agent = VMLPStyleExpert(self.obs_dim,self.act_dim,self.reward_dim,self.style_dim,continous=continous)
             else:
                 print("################### Using MAS ###################")
                 self.agent = VStyleExpert(self.obs_dim,self.act_dim,self.reward_dim,
-                                          self.style_dim,allow_retrain=self.args.allow_retrain)
+                                          self.style_dim,allow_retrain=self.args.allow_retrain,continous=continous)
         else:
             print("################### Using Expert ###################")
-            self.agent = VExpert(self.obs_dim,self.act_dim,self.style_dim)
+            self.agent = VExpert(self.obs_dim,self.act_dim,self.style_dim,continous=continous)
         self.use_mas = self.args.use_mas
         self.pi_optimizer = optim.Adam(self.agent.actor.parameters(), lr=self.args.learning_rate, eps=1e-5)
         self.v_optimizer = optim.Adam(self.agent.critic.parameters(), lr=self.args.learning_rate, eps=1e-5)
@@ -88,12 +93,12 @@ class VLearner(object):
         self.next_obs = torch.Tensor(self.next_obs).to(self.device)
         self.next_done = torch.zeros(self.num_envs).to(self.device)
 
-    def learn(self,total_timesteps,num_steps,reset_env_freq = 2):
+    def learn(self,total_timesteps,num_steps,reset_env_freq = 10):
         self._init_track()
-        update_weight_freq = 5
+        update_weight_freq = 50 #! every freq steps， 重新排序一下 weights
         batch_size = num_steps * self.num_envs
         num_updates = total_timesteps // batch_size
-        
+        print("Num_updates: ",num_updates)
         self.global_step = 0
         self.start_time = time.time()
         for update in range(1,num_updates + 1):
@@ -113,6 +118,7 @@ class VLearner(object):
             
             if update % update_weight_freq == 0:
                 self.sampler.update_weights()
+                self.sampler._save_debugs(self.args.save_path,update)
 
     def rollout(self,num_steps,num_envs,device):
         #! 主要是修改了：增加 weight 和 vector reward 的收集；计算向量化的 return 和 adv
@@ -175,6 +181,8 @@ class VLearner(object):
                         self.writer.add_scalar("charts/episodic_length", info['episode']['l'][i], self.global_step)
                         #! 更新当前 权重下的 return 
                         self.sampler.update_returns(self.list_reward_weights[i],vector_return[i])
+                        for j in range(self.reward_dim):
+                            self.writer.add_scalar(f"charts/{self.factor_name[j]}_return", vector_return[i][j], self.global_step)
                         vector_return[i] = np.zeros(self.reward_dim)
                     
 
@@ -215,6 +223,8 @@ class VLearner(object):
         # Optimizing the policy and value network
         b_inds = np.arange(batch_size)
         clipfracs = []
+        v_loss_track = [0 for _ in range(self.reward_dim)]
+        v_value = [0 for _ in range(self.reward_dim)]
         for epoch in range(args.update_epochs):
             np.random.shuffle(b_inds)
             for start in range(0, batch_size, args.minibatch_size):
@@ -253,22 +263,25 @@ class VLearner(object):
                 # Value loss
                 self.v_optimizer.zero_grad()
                 #! newvalue 也是 (bz,style)
-                # newvalue = newvalue.view(-1)
+                #! track 
+                v_value = newvalue.mean(0).tolist()
                 if args.clip_vloss:
                     v_loss_unclipped = (newvalue - b_returns[mb_inds]) ** 2
-                    v_loss_unclipped = (v_loss_unclipped * mb_weights).sum(-1)
+                    v_loss_unclipped = (v_loss_unclipped).sum(-1)
                     v_clipped = b_values[mb_inds] + torch.clamp(
                         newvalue - b_values[mb_inds],
                         -args.clip_coef,
                         args.clip_coef,
                     )
                     v_loss_clipped = (v_clipped - b_returns[mb_inds]) ** 2
-                    v_loss_clipped = (v_loss_clipped * mb_weights).sum(-1)
+                    v_loss_track = v_loss_clipped.mean(0).tolist()
+                    v_loss_clipped = (v_loss_clipped).sum(-1)
                     v_loss_max = torch.max(v_loss_unclipped, v_loss_clipped)
                     v_loss = 0.5 * v_loss_max.mean()
                 else:
-                    v_loss = 0.5 * ((newvalue - b_returns[mb_inds]) ** 2)
-                    v_loss = (v_loss * mb_weights).sum(-1).mean()
+                    v_loss = ((newvalue - b_returns[mb_inds]) ** 2)
+                    v_loss_track = v_loss.mean(0).tolist()
+                    v_loss = (v_loss ).sum(-1).mean()
 
                 v_loss = v_loss * args.vf_coef
                 v_loss.backward()
@@ -285,7 +298,11 @@ class VLearner(object):
 
         # TRY NOT TO MODIFY: record rewards for plotting purposes
         self.writer.add_scalar("charts/learning_rate",self. pi_optimizer.param_groups[0]["lr"], self.global_step)
-        self.writer.add_scalar("losses/value_loss", v_loss.item(), self.global_step)
+        # self.writer.add_scalar("losses/value_loss", v_loss.item(), self.global_step)
+        for i,v in enumerate(v_value):
+            self.writer.add_scalar("losses/v_value_{}".format(i), v, self.global_step)
+        for i,v in enumerate(v_loss_track):
+            self.writer.add_scalar("losses/v_loss_{}".format(i), v, self.global_step)
         self.writer.add_scalar("losses/policy_loss", pg_loss.item(), self.global_step)
         self.writer.add_scalar("losses/entropy", entropy_loss.item(), self.global_step)
         self.writer.add_scalar("losses/old_approx_kl", old_approx_kl.item(), self.global_step)

@@ -128,11 +128,17 @@ class Factor_Sampler(object):
         #! 保留 update 前的均值；保留上次 update 后每个 weight 被更新的次数
         self.old_returns = np.zeros((self.total_combination,self.n_style))
         self.current_returns = np.zeros((self.total_combination,self.n_style))
+        self.delta_returns = np.zeros((self.total_combination,self.n_style))
         self.update_times = np.zeros((self.total_combination,))
-        self.style_weights = np.zeros((self.total_combination,self.n_style))
 
         ## ? debugs: 
         self._debugs = np.zeros((self.total_combination,))
+
+        ## ? 对外 sample 用
+        self._to_sample = self.total_combination
+        self._to_sample_weights = np.ones((self.total_combination,)) / np.ones((self.total_combination,)).sum()
+        
+
 
     def _pair_to_weight(self,idx:list):
         assert len(idx) == self.n_style
@@ -161,57 +167,52 @@ class Factor_Sampler(object):
             num = num % self._num_helpers[i]
         result.reverse()
         return result
-    def _calc_weights(self,clip = True,norm = True):
-        weights = self.style_weights
-        if norm:
-            normalized_weights = (weights - weights.mean(0,keepdims=True)) / weights.std(0,keepdims=True)
-            normalized_weights = normalized_weights.sum(-1)
-            weights = normalized_weights
-        else:
-            weights = weights.sum(-1)
-        if clip:
-            return np.clip(weights,a_min=0,a_max=None)
-        else:
-            return weights
+    
+    
     
     def update_returns(self,weight,returns):
+        #! 对外接口，每次 done 后根据 使用的 weight 更新 return
         idx = self._weight_to_pair(weight)
         num = self._pair_to_num(idx)
         self.current_returns[num] += returns
         self.update_times[num] += 1
-    def update_weights(self,tau = 0.9):
-        bonus = 1.0
-        self.update_times += 1e-6
-        self.current_returns = self.current_returns / self.update_times.reshape(-1,1)
-        delta_returns = self.current_returns - self.old_returns 
-        self.old_returns = self.current_returns * (1 - tau) + self.old_returns * tau
-        #! 可以这里直接修改 weights，也可以同时检查没有 update 的weights，加上额外的权重
-        self.style_weights = np.zeros((self.total_combination,self.n_style))
-        self.style_weights += delta_returns
-        self.style_weights[np.where(self.update_times<1)] += 1.0  * bonus
+
+    def _update_weights(self,tau = 0.9):
+        #! 在使用 K 次 to_sample 之后，更新 old return 的结果：
+            #! 没有被sample到的，保持原样或者加上额外的权重
+            #! 被sample到的，更新为新的权重
+        current_returns = self.current_returns.copy()
+        current_returns[np.where(self.update_times == 0)] = self.old_returns[np.where(self.update_times == 0)]
+        delta_returns = current_returns - self.old_returns
+        self.delta_returns = self.delta_returns * tau + delta_returns * (1 - tau)
+        self.old_returns = self.old_returns * tau + current_returns * (1 - tau)
+        
         #! reset return track
         self.current_returns = np.zeros((self.total_combination,self.n_style))
         self.update_times = np.zeros((self.total_combination,))
 
+    def update_weights(self):
+        #! 用于更新 to_sample 和 to_sample_weights
+        #! 根据 old_returns 进行 non-dominant sorting，提取 rank 1，2 的样本
+        self._update_weights()
 
-    # def update_weights(self,weight,delta_ret):
-    #     idx = self._weight_to_pair(weight)
-    #     num = self._pair_to_num(idx)
-    #     if type(delta_ret) == list:
-    #         delta_ret = np.array(delta_ret)
-    #     assert delta_ret.shape == (self.n_style,)
-    #     self.style_weights[num] = delta_ret
+        # to_sort = self.old_returns
+        to_sort = self.delta_returns
+        rank,rank_dict = non_dominated_sort(to_sort)
+        rank_1 = rank_dict.get(1,[])
+        rank_2 = rank_dict.get(2,[])
+        self._to_sample = rank_1 + rank_2 if len(rank_1) > 0 else self.total_combination
+        if type(self._to_sample) == list:
+            self._to_sample_weights = np.ones((len(self._to_sample),)) / np.ones((len(self._to_sample),)).sum()
+        else:
+            self._to_sample_weights = np.ones((self._to_sample,)) / np.ones((self._to_sample,)).sum()
     
-    def sample_weights(self,num_samples,clip=False,norm=False):
-        weights = self._calc_weights(clip=clip,norm=norm)
-        weights = np.exp(weights) / np.exp(weights).sum()
-        sampled = np.random.choice(self.total_combination,size=num_samples,p=weights)
-        sampled = [self._pair_to_weight(self._num_to_pair(i)) for i in sampled]
-        return sampled
+
     def generate_reward_factors(self,num_samples,clip=False,norm=False):
-        weights = self._calc_weights(clip=clip,norm=norm)
-        weights = np.exp(weights) / np.exp(weights).sum()
-        sampled_idx = np.random.choice(self.total_combination,size=num_samples,p=weights)
+        #! 对外接口，根据 to_sample 和 to_sample_weights 生成 reward_factors
+        #! 本身不更新 to_sample 和 to_sample_weights
+        
+        sampled_idx = np.random.choice(self._to_sample,size=num_samples,p=self._to_sample_weights)
         ## ? debugs:
         self._debugs[sampled_idx] += 1
         sampled_pair = [self._num_to_pair(i) for i in sampled_idx]
@@ -219,13 +220,16 @@ class Factor_Sampler(object):
         sampled_styles = [self._pair_to_styles(i) for i in sampled_pair]
         return sampled_weights,sampled_styles
     
-    def _save_debugs(self,path):
+    def _save_debugs(self,path,name = None):
         d = dict(
             sample_times = self._debugs,
-            style_weights = self.style_weights,
             old_returns = self.old_returns,
+            to_sample = np.array(self._to_sample) if type(self._to_sample) == list else self._to_sample,
+            to_sample_weights = self._to_sample_weights,
         )
-        data_path = os.path.join(path,"sampler_debug")
+        name = 'sampler_debug' if name is None else name
+        name = str(name) if type(name) != str else name
+        data_path = os.path.join(path,name)
         np.savez(data_path,**d)
 
 

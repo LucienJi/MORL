@@ -24,13 +24,13 @@ def parse_args():
     parser.add_argument("--allow_retrain", type=lambda x: bool(strtobool(x)), default=False,)
 
     # Algorithm specific arguments
-    parser.add_argument("--total_timesteps", type=int, default=2000000,
+    parser.add_argument("--total_timesteps", type=int, default=5000000,
         help="total timesteps of the experiments")
     parser.add_argument("--learning-rate", type=float, default=2.5e-4,
         help="the learning rate of the optimizer")
     parser.add_argument("--num_envs", type=int, default=32,
         help="the number of parallel game environments")
-    parser.add_argument("--num_steps", type=int, default=128,
+    parser.add_argument("--num_steps", type=int, default=256,
         help="the number of steps to run in each environment per policy rollout")
     parser.add_argument("--anneal-lr", type=bool, default=True,
         help="Toggle learning rate annealing for policy and value networks")
@@ -42,7 +42,7 @@ def parse_args():
         help="the number of mini-batches")
     parser.add_argument("--update-epochs", type=int, default=8,
         help="the K epochs to update the policy")
-    parser.add_argument('--pi_update_frq',type = int ,default=2)
+    parser.add_argument('--pi_update_frq',type = int ,default=4)
     parser.add_argument("--norm-adv", type=bool, default=True,
         help="Toggles advantages normalization")
     parser.add_argument("--clip-coef", type=float, default=0.2,

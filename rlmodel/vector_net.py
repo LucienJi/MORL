@@ -4,12 +4,14 @@ import torch.nn.functional as F
 import numpy as np
 import copy 
 from torch.distributions.categorical import Categorical
+from torch.distributions.normal import Normal
+
 import os 
 
 from .controlnet import Block,ControlBlock,ControlNet,MLPNet
 
 #! Base Case，Single Style Model
-
+LOG_STD_MIN,LOG_STD_MAX = -20,2
 class VMLPNet(nn.Module):
     def __init__(self,input_dim,output_dim,hidden_size = [256,256],extra_input_dim = 0):
         super(VMLPNet,self).__init__()
@@ -184,19 +186,32 @@ class VControlNet_v2(nn.Module):
 
 
 class VExpert(object):
-    def __init__(self,obs_dim,act_dim,reward_dim,hidden_size = [256,256]):
+    def __init__(self,obs_dim,act_dim,reward_dim,hidden_size = [256,256],continous = False):
         obs_dim,act_dim,reward_dim = int(obs_dim),int(act_dim),int(reward_dim)
         self.critic = VControlNet_v2(obs_dim,reward_dim,hidden_size = hidden_size,use_mas = False,)
-        self.actor = ControlNet(obs_dim,act_dim,hidden_size = hidden_size,use_mas = False)
-    
+        if not continous:
+            self.actor = ControlNet(obs_dim,act_dim,hidden_size = hidden_size,use_mas = False)
+        else:
+            self.actor = ControlNet(obs_dim,act_dim * 2,hidden_size = hidden_size,use_mas = False)
+        self.continous = continous
     def get_value(self,x,style,weights = None):
         return self.critic(x,style,weights = weights)
     def get_action_and_value(self,x,style,action = None,weights = None):
-        logits = self.actor(x,style)
-        probs = Categorical(logits = logits)
+        if not self.continous:
+            logits = self.actor(x,style)
+            probs = Categorical(logits = logits)
+        else:
+            mu,log_std = self.actor(x,style).chunk(2,dim = -1)
+            log_std = torch.clamp(log_std,LOG_STD_MIN,LOG_STD_MAX)
+            std = torch.exp(log_std)
+            probs = Normal(mu,std)
         if action is None:
             action = probs.sample()
-        return action, probs.log_prob(action),probs.entropy(), self.critic(x,style,weights = weights)
+        if self.continous:
+            log_prob = probs.log_prob(action).sum(dim = -1,keepdim = False)
+        else:
+            log_prob = probs.log_prob(action)
+        return action, log_prob,probs.entropy(), self.critic(x,style,weights = weights)
 
     def save(self,path):
         if not os.path.exists(path):
@@ -214,23 +229,37 @@ class VExpert(object):
     
 
 class VStyleExpert(object):
-    def __init__(self,obs_dim,act_dim,reward_dim,style_dim,allow_retrain = False,hidden_size = [256,256]):
+    def __init__(self,obs_dim,act_dim,reward_dim,style_dim,allow_retrain = False,hidden_size = [256,256,],
+                 continous = False):
         obs_dim,act_dim,reward_dim = int(obs_dim),int(act_dim),int(reward_dim)
         self.critic = VControlNet_v2(obs_dim,reward_dim,hidden_size = hidden_size,
                                   use_mas = True,
                                   extra_input_dim = style_dim,
                                   allow_retrain = allow_retrain)
-        self.actor = ControlNet(obs_dim,act_dim,hidden_size = hidden_size,use_mas = True,
+        if not continous:
+            self.actor = ControlNet(obs_dim,act_dim,hidden_size = hidden_size,use_mas = True,
                                 extra_input_dim = style_dim,allow_retrain=allow_retrain)
+        else:
+            self.actor = ControlNet(obs_dim,act_dim * 2,hidden_size = hidden_size,use_mas = True,
+                                extra_input_dim = style_dim,allow_retrain=allow_retrain)
+        self.continous = continous 
     
     def get_value(self,x,style,weights = None):
         return self.critic(x,style,weights = weights)
     def get_action_and_value(self,x,style,action = None,weights = None):
-        logits = self.actor(x,style)
-        probs = Categorical(logits = logits)
-        if action is None:
-            action = probs.sample()
-        return action, probs.log_prob(action),probs.entropy(), self.critic(x,style,weights = weights)
+        if not self.continous:
+            logits = self.actor(x,style)
+            probs = Categorical(logits = logits)
+        else:
+            mu,log_std = self.actor(x,style).chunk(2,dim = -1)
+            log_std = torch.clamp(log_std,LOG_STD_MIN,LOG_STD_MAX)
+            std = torch.exp(log_std)
+            probs = Normal(mu,std)
+        if self.continous:
+            log_prob = probs.log_prob(action).sum(dim = -1,keepdim = False)
+        else:
+            log_prob = probs.log_prob(action)
+        return action, log_prob,probs.entropy(), self.critic(x,style,weights = weights)
     def load_expert(self,path):
         if os.path.exists(path):
             self.critic.load_expert(path,"critic")
@@ -253,19 +282,33 @@ class VStyleExpert(object):
         return self
 
 class VMLPStyleExpert(object):
-    def __init__(self,obs_dim,act_dim,reward_dim,style_dim,hidden_size = [256,256]):
+    def __init__(self,obs_dim,act_dim,reward_dim,style_dim,hidden_size = [256,256],continous = False):
         obs_dim,act_dim,reward_dim = int(obs_dim),int(act_dim),int(reward_dim)
         self.critic = VMLPNet(obs_dim,reward_dim,hidden_size,extra_input_dim=style_dim)
-        self.actor = MLPNet(obs_dim,act_dim,hidden_size,extra_input_dim=style_dim)
-    
+        if continous:
+            self.actor = MLPNet(obs_dim,act_dim * 2,hidden_size,extra_input_dim=style_dim)
+        else:
+            self.actor = MLPNet(obs_dim,act_dim,hidden_size,extra_input_dim=style_dim)
+        self.continous = continous
+
     def get_value(self,x,style,weights = None):
         return self.critic(x,style,weights = weights)
     def get_action_and_value(self,x,style,action = None,weights = None):
-        logits = self.actor(x,style)
-        probs = Categorical(logits = logits)
+        if not self.continous:
+            logits = self.actor(x,style)
+            probs = Categorical(logits = logits)
+        else:
+            mu,log_std = self.actor(x,style).chunk(2,dim = -1)
+            log_std = torch.clamp(log_std,LOG_STD_MIN,LOG_STD_MAX)
+            std = torch.exp(log_std)
+            probs = Normal(mu,std)
         if action is None:
             action = probs.sample()
-        return action, probs.log_prob(action),probs.entropy(), self.critic(x,style,weights = weights)
+        if self.continous:
+            log_prob = probs.log_prob(action).sum(dim = -1,keepdim = False)
+        else:
+            log_prob = probs.log_prob(action)
+        return action, log_prob,probs.entropy(), self.critic(x,style,weights = weights)
     
     def save(self,path):
         if not os.path.exists(path):

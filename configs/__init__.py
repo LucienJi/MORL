@@ -1,8 +1,8 @@
 #! Discrete action space
 
 Deep_Sea_Treasure_v0 = {
-    'treasure':{"lower_bound": 1, "upper_bound": 1, "fine_grit": 1.0},
-    'time_penalty':{"lower_bound": 0, "upper_bound": 2, "fine_grit": 0.5}
+    'treasure':{"lower_bound": 0, "upper_bound": 2, "fine_grit": 0.1},
+    'time_penalty':{"lower_bound": 0, "upper_bound": 2, "fine_grit": 0.1}
 }
 
 Four_Room_v0 = {
