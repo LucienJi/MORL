@@ -1,9 +1,14 @@
 import mo_gymnasium as mo_gym
 import gym 
-import numpy as np
 import random
 import dataclasses
 import os 
+from typing import Callable, List
+import numpy as np
+import numpy.typing as npt
+from pymoo.indicators.hv import HV
+from pymoo.indicators.igd import IGD
+import copy 
 
 def make_styled_env(env_id,seed,reward_factors):
     assert type(reward_factors) == list 
@@ -232,6 +237,39 @@ class Factor_Sampler(object):
         data_path = os.path.join(path,name)
         np.savez(data_path,**d)
 
+def hypervolume(ref_point: np.ndarray, points: List[npt.ArrayLike]) -> float:
+    """Computes the hypervolume metric for a set of points (value vectors) and a reference point (from Pymoo).
+    Args:
+        ref_point (np.ndarray): Reference point
+        points (List[np.ndarray]): List of value vectors
+    Returns:
+        float: Hypervolume metric
+    """
+    return HV(ref_point=ref_point * -1)(np.array(points) * -1)
+
+
+def sparsity(front: List[np.ndarray]) -> float:
+    """Sparsity metric from PGMORL.
+    Basically, the sparsity is the average distance between each point in the front.
+    Args:
+        front: current pareto front to compute the sparsity on
+    Returns:
+        float: sparsity metric
+    """
+    if len(front) < 2:
+        return 0.0
+
+    sparsity_value = 0.0
+    m = len(front[0])
+    front = np.array(front)
+    print(front.shape)
+    for dim in range(m):
+        objs_i = np.sort(copy.deepcopy(front.T[dim]))
+        for i in range(1, len(objs_i)):
+            sparsity_value += np.square(objs_i[i] - objs_i[i - 1])
+    sparsity_value /= len(front) - 1
+
+    return sparsity_value
 
 class MO_Stats(object):
     def __init__(self) -> None:
