@@ -2,8 +2,7 @@ import numpy as np
 import copy
 import time
 import torch as th
-
-
+import mo_gymnasium as mo_gym
 
 class Instance:
     def __init__(
@@ -42,13 +41,17 @@ class Instance:
 class TrainingSet:
     def __init__(
             self,
-            max_capacity,
-            state_dim,act_dim,style_dim
-    ):
-        self.max_capacity = max_capacity
-        self.state_dim = state_dim
-        self.act_dim = act_dim
-        self.style_dim = style_dim
+            configs,
+    ):  
+        self.env_id = configs['env_id']    
+        self.env = mo_gym.make(self.env_id)
+        self.env = mo_gym.LinearReward(self.env)
+
+        state_dim,act_dim = self.env.observation_space.shape[0],self.env.action_space.shape[0]
+        
+        max_capacity = configs["max_capacity"] 
+        self.reward_factor = configs["reward_factor"]
+        style_dim = len(self.reward_factor.keys())
 
 
         self.data_time_list = np.zeros(shape=(max_capacity,))
@@ -62,6 +65,11 @@ class TrainingSet:
         self.q_value_list = np.zeros(shape=(max_capacity,style_dim))
         self.ptr = 0
         self._size = 0
+
+        self.max_capacity = max_capacity
+        self.state_dim = state_dim
+        self.act_dim = act_dim
+        self.style_dim = style_dim
 
     def clear(self):
         max_capacity = self.max_capacity
@@ -79,7 +87,6 @@ class TrainingSet:
         self.q_value_list = np.zeros(shape=(max_capacity,style_dim))
         self.ptr = 0
         self._size = 0
-
     def len(self):
         return self._size
 
@@ -99,12 +106,12 @@ class TrainingSet:
             self.ptr = (self.ptr + 1) % self.max_capacity
             self._size = min(self._size + 1, self.max_capacity)
 
-    def slice(self, index_list,batch_size):
+    def slice(self, index_list,batch_size = None):
         if index_list is None:
             index_list = self._generate_random_index(batch_size)
         slice_dict = {}
 
-
+        batch_size = len(index_list)
         slice_dict["states"] = self.state_list[index_list].reshape(batch_size, -1)
         slice_dict["styles"] = self.style_list[index_list].reshape(batch_size, -1)
         slice_dict["reward_weights"] = self.reward_weight_list[index_list].reshape(batch_size, -1)
@@ -121,12 +128,13 @@ class TrainingSet:
     def _generate_random_index(self, batch_size):
         return np.random.choice(range(self.len()), batch_size, replace=False)
     
-    def get_trainin_index(self,minibatch_size):
+    def get_training_index(self,minibatch_size):
         indices = np.random.permutation(self.len())
         start = 0
-        end = minibatch_size
-        while end < self.len():
+        end = min(minibatch_size,self.len())
+
+        while end <= self.len():
             yield indices[start:end]
+            if end == self.len():break
             start = end 
-            end += minibatch_size
-            end = min(end,self.len())    
+            end = min(end + minibatch_size,self.len())

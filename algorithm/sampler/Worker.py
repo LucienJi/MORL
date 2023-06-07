@@ -11,22 +11,23 @@ from algorithm.sampler.buffer import Instance
 import ray 
 
 class Worker(object):
-    def __init__(self,env_id,
+    def __init__(self,
+                 configs,
                  agent_type:PPO_Agent,
-                 reward_factor:dict,
                  seed:int) -> None:
-        self.env_id = env_id    
-        self.env = mo_gym.make(env_id)
+        self.env_id = configs['env_id']    
+        self.env = mo_gym.make(self.env_id)
         self.env = mo_gym.LinearReward(self.env)
 
         self.obs_dim,self.act_dim = self.env.observation_space.shape[0],self.env.action_space.shape[0]
-        self.reward_factor = reward_factor  
+        self.reward_factor = configs["reward_factor"]  
         self.style_dim = len(self.reward_factor.keys())
         self.seed = seed
         self.agent = agent_type()
         #! PARA
-        self.gamma = 0.99
-        self.tau = 0.95
+        self.gamma = configs["gamma"]
+        self.tau = configs["tau"]
+        self.max_traj_len = configs["max_traj_len"]
 
         #! ENV STATE
         self.done = True 
@@ -34,15 +35,21 @@ class Worker(object):
         self.style_state = None 
         self.reward_weight = None
 
-        self.max_traj_len = 128
+        
         #! Statistics
         self.episode_reward = 0
         self.episode_reward_vec = np.zeros(shape=(self.style_dim,))
         self.episode_length = 0
+
+        self.episode_reward_list = []
+        self.episode_reward_vec_list = []
+        self.episode_length_list = []
+
+
         self.gae = GAE()
 
-    def fetch_model(self,path):
-        self.agent.fetch_model_parameter(path)
+    def fetch_model(self,path,name):
+        self.agent.fetch_model_parameter(path,name)
     
     def step(self,action):
         next_state,scalar_reward,done,_,info = self.env.step(action)
@@ -78,7 +85,7 @@ class Worker(object):
         num_steps = 0
         while num_steps < self.max_traj_len:
             if self.done:
-                self._reset_statistics()
+                self._flush_statistics()
                 self.state,self.style_state,self.reward_weight = self.reset()
             else:
                 state,style_state = self.get_input()
@@ -120,16 +127,33 @@ class Worker(object):
             item.advantage = advantages[index]
             item.q_value = returns[index]
         
-        return memory 
-    def _reset_statistics(self):
+        return memory, self.get_statistics()
+    def _flush_statistics(self):
+        self.episode_length_list.append(self.episode_length)
+        self.episode_reward_list.append(self.episode_reward)
+        self.episode_reward_vec_list.append(self.episode_reward_vec)
+
         self.episode_reward = 0
         self.episode_reward_vec = np.zeros(shape=(self.style_dim,))
         self.episode_length = 0
+    
+    def get_statistics(self):  
+        ep_length = self.episode_length_list
+        ep_rew = self.episode_reward_list
+        ep_rew_vec = self.episode_reward_vec_list 
+        self.episode_length_list = []
+        self.episode_reward_list = []
+        self.episode_reward_vec_list = []
+        return {
+            "episode_length":ep_length,
+            "episode_reward":ep_rew,
+            "episode_reward_vec":ep_rew_vec
+        }
 
 @ray.remote
 class RemoteWorker(Worker):
-    def __init__(self, env_id, agent_type: PPO_Agent, reward_factor: dict, seed: int) -> None:
-        super().__init__(env_id, agent_type, reward_factor, seed)
+    def __init__(self, configs, agent_type: PPO_Agent, seed: int) -> None:
+        super().__init__(configs, agent_type, seed)
 
 
     

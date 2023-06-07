@@ -13,7 +13,7 @@ def to_device(data, device="cpu"):
     elif isinstance(data, (list, tuple)):
         result = [to_device(d, device) for d in data]
     else:
-        result = th.from_numpy(data).to(device)
+        result = th.from_numpy(data).float().to(device)
     return result
 
 def load_script_model(path):
@@ -33,3 +33,8 @@ def serialize_model(net, path_prefix, name):
         os.makedirs(path_prefix)
     path = os.path.join(path_prefix, name)
     save_script_model(path, net)
+
+def deserialize_model(path_prefix, name):
+    path = os.path.join(path_prefix, name)
+    net = load_script_model(path)
+    return net

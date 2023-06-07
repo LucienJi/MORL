@@ -1,0 +1,25 @@
+{   "name":"Mas",
+    "env_id":"mo-hopper-v4",
+    "use_remote":false,
+    "num_workers":2,
+
+    "max_traj_len":128,
+    "max_capacity":10000,
+    "batch_size":512,
+    "gamma": 0.999,
+    "tau": 0.95,
+    "ppo_clip": 0.2,
+    "grad_clip": 10,
+    "dual_clip": true,
+    "dual_clip_c": 3,
+    "ent": 0.01,
+    "lr": 5e-5,
+    "model_path":"tmp/train",
+    "eval_model_path":"tmp/eval",
+    "reward_factor":
+    {
+            "velocity":{"lower_bound": 1, "upper_bound": 1, "fine_grit": 0.5},
+            "height":{"lower_bound": 1, "upper_bound": 1, "fine_grit": 0.5},
+            "energy":{"lower_bound": 1, "upper_bound": 1, "fine_grit": 0.5}
+    }
+}

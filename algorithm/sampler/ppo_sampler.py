@@ -1,6 +1,6 @@
 import torch as th 
 import numpy as np 
-from algorithm.learner.model_utils import load_script_model
+from algorithm.learner.model_utils import deserialize_model
 from torch.distributions.categorical import Categorical
 from torch.distributions.normal import Normal
 LOG_STD_MAX = 2
@@ -14,8 +14,8 @@ class PPO_Agent(object):
         return th.from_numpy(state).float().unsqueeze(0)
     def process_style(self,style):
         return th.from_numpy(style).float().unsqueeze(0)
-    def fetch_model_parameter(self,path):
-        self.pnet = load_script_model(path)
+    def fetch_model_parameter(self,path,name):
+        self.pnet = deserialize_model(path,name)
     
     def get_model_result(self,state,style):
         # print("Check: ", state.shape,style.shape)

@@ -5,22 +5,27 @@ import mo_gymnasium as mo_gym
 import numpy as np 
 from algorithm.learner.model_utils import to_device
 from algorithm.sampler.buffer import Instance,TrainingSet
+import os
+from algorithm.logger.Logger import BasicLogger 
 class PPO_Learner:
-    def __init__(self,env_id,reward_factor) -> None:
+    def __init__(self,configs,buffer:TrainingSet,logger:BasicLogger=None) -> None:
         #! Parameter Part 
-        self.clip_epsilon = 0.2
-        self.dual_clip_c = 3
-        self.ent_coef = 0.01
-        self.lr = 3e-5
-        self.grad_clip = 10.0
-
+        self.clip_epsilon = configs['ppo_clip']
+        self.dual_clip_c = configs['dual_clip_c']
+        self.ent_coef = configs['ent']
+        self.lr = configs['lr']
+        self.grad_clip = configs['grad_clip']
+        self.batch_size = configs['batch_size']
+        self.model_path = configs['model_path']
+        self.name = configs['name']
         self.local_rank = 0
-        self.name = "MAS_PPO"
-        self.env_id = env_id    
-        self.env = mo_gym.make(env_id)
+        
+        self.env_id = configs['env_id']    
+        
+        self.env = mo_gym.make(self.env_id)
         self.env = mo_gym.LinearReward(self.env)
         self.obs_dim,self.act_dim = self.env.observation_space.shape[0],self.env.action_space.shape[0]
-        self.reward_factor = reward_factor  
+        self.reward_factor = configs["reward_factor"]  
         self.style_dim = len(self.reward_factor.keys())
 
         #！ Model Part 
@@ -28,9 +33,15 @@ class PPO_Learner:
         self.optimizer = th.optim.Adam(self.net.parameters(),lr = self.lr)
 
         #! Date Part
-        self.training_set = TrainingSet(10000,self.obs_dim,self.act_dim,self.style_dim)
+        self.training_set = buffer
+        
+        self.logger = logger
     
-    def save_model(self,path):
+    def save_model(self,path = None):
+        if path is None:
+            path = self.model_path
+        if not os.path.exists(path):
+            os.makedirs(path)
         serialize_model(self.net,path,self.name)
     
     def update(self,training_batch):
@@ -103,10 +114,10 @@ class PPO_Learner:
         data: dict of np.ndarray collected from sampler 
         """
         bz = self.training_set.len()
-        minibatch_size = min(1024,bz)
-        for index in self.training_set.get_trainin_index(minibatch_size):
+        minibatch_size = min(self.batch_size,bz)
+        for index in self.training_set.get_training_index(minibatch_size):
             training_batch = self.training_set.slice(index)
-            training_batch = to_device(training_batch,deivce = "cpu")
+            training_batch = to_device(training_batch,device = "cpu")
             info = self.update(training_batch)
             print(info)
         
