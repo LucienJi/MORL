@@ -90,20 +90,20 @@ class PPO_Learner:
         self.optimizer.step()
 
         info = {
-            "policy_loss":psurr.item(),
-            "value_loss":value_loss.item(),
-            "entropy":entropy.item(),
-            "approx_kl1":approx_kl1,
-            "approx_kl2":approx_kl2,
-            "clipfrac":clipfrac,
-            "adv_mean":advantages_scalar.mean().item(),
-            "adv_std":advantages_scalar.std().item(),
+            "Learner/policy_loss":psurr.item(),
+            "Learner/value_loss":value_loss.item(),
+            "Learner/entropy":entropy.item(),
+            "Learner/approx_kl1":approx_kl1,
+            "Learner/approx_kl2":approx_kl2,
+            "Learner/clipfrac":clipfrac,
+            "Learner/adv_mean":advantages_scalar.mean().item(),
+            "Learner/adv_std":advantages_scalar.std().item(),
         }
         vec_info = {}
         for i in range(self.style_dim):
-            vec_info[f"adv_{i}"] = advantages_cpu[:,i].mean().item()
-            vec_info[f"adv_{i}_std"] = advantages_cpu[:,i].std().item()
-            vec_info[f'q_value_{i}'] = q_values[:,i].mean().item()
+            vec_info[f"Learner/adv_{i}"] = advantages_cpu[:,i].mean().item()
+            vec_info[f"Learner/adv_{i}_std"] = advantages_cpu[:,i].std().item()
+            vec_info[f'Learner/q_value_{i}'] = q_values[:,i].mean().item()
         
         info.update(vec_info)
         return info 
@@ -119,7 +119,10 @@ class PPO_Learner:
             training_batch = self.training_set.slice(index)
             training_batch = to_device(training_batch,device = "cpu")
             info = self.update(training_batch)
-            print(info)
+            if self.logger is not None:
+                self.logger.log_detail(info)
+        
+
         
 
         

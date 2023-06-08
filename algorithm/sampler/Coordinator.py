@@ -30,6 +30,12 @@ class Coordinator(object):
         self.fetch_model()
 
         self.logger = logger 
+    
+    def set_tasks(self,task_id,weight_list,style_list):
+        if self.use_remote:
+            ray.get([worker.get_tasks.remote(task_id,weight_list,style_list) for worker in self.workers])
+        else:
+            [worker.get_tasks(task_id,weight_list,style_list) for worker in self.workers]
 
     def fetch_model(self):
         if self.use_remote:
@@ -47,4 +53,8 @@ class Coordinator(object):
             memory,statistics = data[0],data[1]
             self.buffer.append_instance(memory)
             num_samples += len(memory)
+
+            if self.logger is not None:
+                self.logger.log_detail(statistics)
+        
 

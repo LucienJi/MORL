@@ -44,9 +44,20 @@ class Worker(object):
         self.episode_reward_list = []
         self.episode_reward_vec_list = []
         self.episode_length_list = []
+        self.episode_task_id = []
 
 
         self.gae = GAE()
+
+        #! task to rollout
+        self.weight_list = [np.array([1.0 for _ in range(self.style_dim)])]
+        self.style_list = [np.array([1.0 for _ in range(self.style_dim)])]
+        self.task_id_list = [0]
+    
+    def get_tasks(self,task_id,weight_list,style_list):
+        self.task_id_list = task_id
+        self.weight_list = weight_list
+        self.style_list = style_list
 
     def fetch_model(self,path,name):
         self.agent.fetch_model_parameter(path,name)
@@ -64,7 +75,11 @@ class Worker(object):
     def reset(self):
         #! 重新设定当前 reward weight
         #! 重新设定当前 preference 
-        reward_weight,reward_factor,style_state = generate_reward_factors(self.reward_factor,self.seed)
+        _id = np.random.choice(range(len(self.weight_list)))
+        reward_weight = self.weight_list[_id]
+        style_state = self.style_list[_id]  
+        self.task_id = self.task_id_list[_id]
+        #reward_weight,reward_factor,style_state = generate_reward_factors(self.reward_factor,self.seed)
         # reward_weight: 权重向量
         # reward_factor: 权重字典
         # style_state: 风格状态
@@ -132,6 +147,7 @@ class Worker(object):
         self.episode_length_list.append(self.episode_length)
         self.episode_reward_list.append(self.episode_reward)
         self.episode_reward_vec_list.append(self.episode_reward_vec)
+        self.episode_task_id.append(self.task_id)
 
         self.episode_reward = 0
         self.episode_reward_vec = np.zeros(shape=(self.style_dim,))
@@ -144,11 +160,15 @@ class Worker(object):
         self.episode_length_list = []
         self.episode_reward_list = []
         self.episode_reward_vec_list = []
-        return {
-            "episode_length":ep_length,
-            "episode_reward":ep_rew,
-            "episode_reward_vec":ep_rew_vec
+        res = {
+            "Episode/length":ep_length,
+            "Episode/reward":ep_rew,
+            "Episode/task_id":self.episode_task_id,
+            # "episode_reward_vec":ep_rew_vec
         }
+        for i in range(self.style_dim):
+            res[f"Episode/return_{i}"] = [tmp[i] for tmp in ep_rew_vec]
+        return res
 
 @ray.remote
 class RemoteWorker(Worker):
