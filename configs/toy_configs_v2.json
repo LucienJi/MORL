@@ -1,14 +1,13 @@
 {   "name":"CodeTest",
-    "env_id":"mo-halfcheetah-v4",
+    "env_id":"mo-hopper-v4",
     "use_remote":true,
     "num_workers":100,
     "log_dir":"logs",
-    "load_model":false,
+    "load_model":true,
     "use_wandb":false,
     "device":"cuda:1",
 
     "max_traj_len":128,
-    "max_episode_steps":1000,
     "max_capacity":15000,
     "batch_size":2048,
     "gamma": 0.999,
@@ -23,7 +22,8 @@
     "eval_model_path":"tmp/train",
     "reward_factor":
     {
-        "velocity":{"lower_bound": 1, "upper_bound": 1, "fine_grit": 0.5},
-        "energy":{"lower_bound": 1, "upper_bound": 1, "fine_grit": 0.5}
+            "velocity":{"lower_bound": 1, "upper_bound": 1, "fine_grit": 0.5},
+            "height":{"lower_bound": 1, "upper_bound": 1, "fine_grit": 0.5},
+            "energy":{"lower_bound": 1, "upper_bound": 1, "fine_grit": 0.5}
     }
 }

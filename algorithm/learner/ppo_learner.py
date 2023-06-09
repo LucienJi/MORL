@@ -22,7 +22,7 @@ class PPO_Learner:
         
         self.env_id = configs['env_id']    
         
-        self.env = mo_gym.make(self.env_id)
+        self.env = mo_gym.make(self.env_id,configs['max_episode_steps'])
         self.env = mo_gym.LinearReward(self.env)
         self.obs_dim,self.act_dim = self.env.observation_space.shape[0],self.env.action_space.shape[0]
         self.reward_factor = configs["reward_factor"]  
@@ -34,9 +34,9 @@ class PPO_Learner:
 
         if configs['load_model']:
             self.load_model()
-        if configs['device'] == 'cuda':
-            self.net.cuda()
+        
         self.device = configs['device']
+        self.net.to(self.device)
 
         #! Date Part
         self.training_set = buffer
@@ -128,8 +128,9 @@ class PPO_Learner:
         bz = self.training_set.len()
         minibatch_size = min(self.batch_size,bz)
         for index in self.training_set.get_training_index(minibatch_size):
+            print(f"Training Batch {len(index)}")
             training_batch = self.training_set.slice(index)
-            training_batch = to_device(training_batch,device = "cpu")
+            training_batch = to_device(training_batch,device = self.device)
             info = self.update(training_batch)
             if self.logger is not None:
                 self.logger.log_detail(info)

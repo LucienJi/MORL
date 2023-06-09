@@ -34,7 +34,7 @@ class SummaryLogger:
         ]
         self.tag_bins = {}
 
-    def add_tag(self, tag, output_threshold = 0, cal_type = 'avg', time_threshold=0, bins=100):
+    def add_tag(self, tag, output_threshold = 10, cal_type = 'avg', time_threshold=0, bins=100):
         self.tag_values_dict[tag] = []
         self.tag_step_dict[tag] = 0
         self.tag_output_threshold_dict[tag] = output_threshold
@@ -46,7 +46,7 @@ class SummaryLogger:
     def add_info(self,tag,value):
         if tag not in self.tag_values_dict.keys():
             #! init tag
-            self.add_tag(tag,output_threshold=0,cal_type='avg')
+            self.add_tag(tag,output_threshold=10,cal_type='avg')
         if type(value) == list:
             self.tag_values_dict[tag].extend(value)
         else:
@@ -56,6 +56,7 @@ class SummaryLogger:
     def dump_summary(self):
         for tag in self.tag_values_dict.keys():
             if len(self.tag_values_dict[tag]) < self.tag_output_threshold_dict[tag]: continue
+            
             if self.tag_func_dict[tag].find("histogram") != -1:
                 # each value is a list
                 all_values = []

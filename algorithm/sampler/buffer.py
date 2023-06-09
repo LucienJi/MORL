@@ -44,7 +44,7 @@ class TrainingSet:
             configs,
     ):  
         self.env_id = configs['env_id']    
-        self.env = mo_gym.make(self.env_id)
+        self.env = mo_gym.make(self.env_id,configs['max_episode_steps'])
         self.env = mo_gym.LinearReward(self.env)
 
         state_dim,act_dim = self.env.observation_space.shape[0],self.env.action_space.shape[0]

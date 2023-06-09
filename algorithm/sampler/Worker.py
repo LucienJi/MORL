@@ -16,7 +16,7 @@ class Worker(object):
                  agent_type:PPO_Agent,
                  seed:int) -> None:
         self.env_id = configs['env_id']    
-        self.env = mo_gym.make(self.env_id)
+        self.env = mo_gym.make(self.env_id,configs['max_episode_steps'])
         self.env = mo_gym.LinearReward(self.env)
 
         self.obs_dim,self.act_dim = self.env.observation_space.shape[0],self.env.action_space.shape[0]

@@ -58,10 +58,10 @@ class Coordinator(object):
             if self.logger is not None:
                 self.logger.log_detail(statistics)
     
-    def evaluate_tasks(self,task_id,weight_list,style_list):
+    def evaluate_tasks(self,task_id,weight_list,style_list,n_traj = 5):
         self.set_tasks(task_id,weight_list,style_list)
         self.eval()
-        n_traj = 5
+        
         if self.use_remote:
             ray.get([worker.reset.remote() for worker in self.workers])
             data_list = ray.get([worker.sample_one_traj.remote(n_traj = n_traj) for worker in self.workers])
