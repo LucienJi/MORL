@@ -6,13 +6,10 @@ import ray
 from algorithm.logger.Logger import BasicLogger
 
 class Coordinator(object):
-    def __init__(self,configs,buffer:TrainingSet,eval_model = False,
+    def __init__(self,configs,buffer:TrainingSet,eval_mode = False,
                  logger:BasicLogger=None) -> None:
-        self.eval_model = eval_model
-        if self.eval_model:
-            self.model_path = configs["eval_model_path"]
-        else:
-            self.model_path = configs["model_path"]
+        
+        self.model_path = configs["model_path"]
         
         self.num_workers = configs["num_workers"]   
         self.use_remote = configs["use_remote"]
@@ -30,6 +27,10 @@ class Coordinator(object):
         self.fetch_model()
 
         self.logger = logger 
+        self.eval_mode = eval_mode
+        if self.eval_mode:
+            self.eval()
+    
     
     def set_tasks(self,task_id,weight_list,style_list):
         if self.use_remote:
@@ -56,5 +57,28 @@ class Coordinator(object):
 
             if self.logger is not None:
                 self.logger.log_detail(statistics)
-        
+    
+    def evaluate_tasks(self,task_id,weight_list,style_list):
+        self.set_tasks(task_id,weight_list,style_list)
+        self.eval()
+        n_traj = 5
+        if self.use_remote:
+            ray.get([worker.reset.remote() for worker in self.workers])
+            data_list = ray.get([worker.sample_one_traj.remote(n_traj = n_traj) for worker in self.workers])
+        else:
+            [worker.reset() for worker in self.workers]
+            data_list = [worker.sample_one_traj(n_traj = n_traj) for worker in self.workers]
+        eval_res = [data[1] for data in data_list]
+        return eval_res
 
+    def eval(self):
+        if self.use_remote:
+            ray.get([worker.eval.remote() for worker in self.workers])
+        else:
+            [worker.eval() for worker in self.workers]
+    
+    def train(self):
+        if self.use_remote:
+            ray.get([worker.train.remote() for worker in self.workers])
+        else:
+            [worker.train() for worker in self.workers]

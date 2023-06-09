@@ -1,9 +1,11 @@
 {   "name":"Mas",
     "env_id":"mo-hopper-v4",
     "use_remote":false,
-    "num_workers":2,
+    "num_workers":10,
     "log_dir":"logs",
+    "load_model":true,
     "use_wandb":false,
+    "device":"cuda:1",
 
     "max_traj_len":128,
     "max_capacity":10000,
@@ -17,11 +19,11 @@
     "ent": 0.01,
     "lr": 5e-5,
     "model_path":"tmp/train",
-    "eval_model_path":"tmp/eval",
+    "eval_model_path":"tmp/train",
     "reward_factor":
     {
-            "velocity":{"lower_bound": 0, "upper_bound": 1, "fine_grit": 0.5},
-            "height":{"lower_bound": 0, "upper_bound": 1, "fine_grit": 0.5},
-            "energy":{"lower_bound": 0, "upper_bound": 1, "fine_grit": 0.5}
+            "velocity":{"lower_bound": 1, "upper_bound": 2, "fine_grit": 0.5},
+            "height":{"lower_bound": 1, "upper_bound": 2, "fine_grit": 0.5},
+            "energy":{"lower_bound": 1, "upper_bound": 2, "fine_grit": 0.5}
     }
 }

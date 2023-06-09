@@ -1,6 +1,7 @@
 *.pt
 *.pyc
 *.txt
+core*
 wandb/
 runs/
 morl-baselines/

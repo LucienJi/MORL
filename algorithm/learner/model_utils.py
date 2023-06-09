@@ -16,10 +16,10 @@ def to_device(data, device="cpu"):
         result = th.from_numpy(data).float().to(device)
     return result
 
-def load_script_model(path):
+def load_script_model(path,device="cpu"):
     with open(path, 'rb') as m:
         models = io.BytesIO(m.read())
-    net = th.jit.load(models, map_location=th.device('cpu'))
+    net = th.jit.load(models, map_location=th.device(device))
     return net
 
 def save_script_model(path,model):

@@ -2,15 +2,16 @@ import os
 import json 
 import wandb
 from algorithm.logger.utils import setup_logger,create_path
-import tensorflow as tf
 import time 
 import numpy as np 
+from torch.utils.tensorboard import SummaryWriter
 
 class SummaryLogger:
     def __init__(self,configs,summary_file_to_write) -> None:
         self.configs = configs
         self.use_wandb = configs['use_wandb']
-        self.summary_writer = tf.summary.create_file_writer(summary_file_to_write)
+        # self.summary_writer = tf.summary.create_file_writer(summary_file_to_write)
+        self.summary_writer = SummaryWriter(summary_file_to_write)
         if self.configs['use_wandb']:
             wandb.init(
                 project="MAS",
@@ -60,8 +61,7 @@ class SummaryLogger:
                 all_values = []
                 for i in self.tag_values_dict[tag]:
                     all_values.extend(i)
-                with self.summary_writer.as_default():
-                    tf.summary.histogram(tag, all_values, step=self.tag_step_dict[tag])
+                self.summary_writer.add_histogram(tag, all_values, global_step=self.tag_step_dict[tag])
             else:
                 if self.tag_func_dict[tag] == "avg":
                     avg_value = sum(self.tag_values_dict[tag]) / len(self.tag_values_dict[tag])
@@ -75,9 +75,7 @@ class SummaryLogger:
                     avg_value = np.array(self.tag_values_dict[tag]).std()
 
                 #! 暂时不能处理 vector
-                
-                with self.summary_writer.as_default():
-                    tf.summary.scalar(tag, avg_value, step=self.tag_step_dict[tag])
+                self.summary_writer.add_scalar(tag, avg_value, global_step=self.tag_step_dict[tag])
             self.tag_step_dict[tag] += 1
             self.tag_values_dict[tag] = []
 
@@ -95,8 +93,7 @@ class SummaryLogger:
                 all_values = []
                 for i in self.tag_values_dict[tag]:
                     all_values.extend(i)
-                with self.summary_writer.as_default():
-                    tf.summary.histogram(tag, all_values, step=self.tag_step_dict[tag])
+                self.summary_writer.add_histogram(tag, all_values, global_step=self.tag_step_dict[tag])
             else:
                 if self.tag_func_dict[tag] == "avg":
                     avg_value = sum(self.tag_values_dict[tag]) / len(self.tag_values_dict[tag])
@@ -109,8 +106,7 @@ class SummaryLogger:
                 elif self.tag_func_dict[tag] == "sd":
                     avg_value = np.array(self.tag_values_dict[tag]).std()
 
-                with self.summary_writer.as_default():
-                    tf.summary.scalar(tag, avg_value, step=self.tag_step_dict[tag])
+                self.summary_writer.add_scalar(tag, avg_value, global_step=self.tag_step_dict[tag])
 
             self.tag_step_dict[tag] += 1
             self.tag_values_dict[tag] = []

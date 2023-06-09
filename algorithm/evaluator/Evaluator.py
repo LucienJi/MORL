@@ -1,6 +1,7 @@
 import mo_gymnasium as mo_gym
 import numpy as np 
 from itertools import product
+import os 
 """
 先做一个离散版的，通常训练过程用离散版的应该没啥问题
 """
@@ -16,6 +17,9 @@ class DiscreteFactorSampler(object):
         
         self.factor_names = []
         self.reward_weights = [] #! reward_name: 可以选择的值
+        self.reward_styles = []
+        self.lower_bounds = []
+        self.upper_bounds = []
         self.pair2ID = {}
         self.ID2pair = {}
 
@@ -39,7 +43,10 @@ class DiscreteFactorSampler(object):
                 tmp_style_states = (grit_factor - factor_info['lower_bound'])/ \
                     (factor_info['upper_bound'] - factor_info['lower_bound'])
             self.reward_weights.append(tmp_list)
+            self.reward_styles.append(tmp_style_states)
             self.factor_names.append(factor_name)
+            self.lower_bounds.append(factor_info['lower_bound'])
+            self.upper_bounds.append(factor_info['upper_bound'])
         
         self.calc_n_weight()
     
@@ -92,11 +99,17 @@ class DiscreteFactorSampler(object):
     
     #! 这里之后需要重新构造一个，用于生成 style state 的函数
     def weight2style(self,weight):
-        return weight 
+        style = []
+        for i in range(self.n_style):
+            style.append((weight[i] - self.lower_bounds[i]) / (self.upper_bounds[i] - self.lower_bounds[i]))
+        return np.array(style).reshape(-1) 
 
+    @property
+    def n_tasks(self):
+        return self.n_weight
 
 class Evaluator(object):
-    def __init__(self,configs) -> None:
+    def __init__(self,configs,logger = None) -> None:
         self.configs = configs
         self.env_id = configs['env_id']    
         self.env = mo_gym.make(self.env_id)
@@ -105,11 +118,43 @@ class Evaluator(object):
         self.obs_dim,self.act_dim = self.env.observation_space.shape[0],self.env.action_space.shape[0]
         self.reward_factor = configs["reward_factor"]  
         self.style_dim = len(self.reward_factor.keys())
+        self.model_path = configs["model_path"]
+        self.logger = logger
 
+        self.reward_sampler = DiscreteFactorSampler(self.reward_factor)
+    
+    def sample_tasks(self,n):
+        """
+        返回 task id, reward weight, style state
+        """
+        return self.reward_sampler.sample_weight(n)
 
-        self.lower_bound = {}
-        self.upper_bound = {}
+    def evaluate_all_tasks(self):
+        """
+        评估所有的 task
+        """
+        n_task = self.reward_sampler.n_tasks
+        all_task_ids = list(range(n_task))
+        all_weights = []
+        all_styles = []
+        for task_id in all_task_ids:
+            weight = self.reward_sampler._ID2weight(task_id)
+            style = self.reward_sampler.weight2style(weight)
+            all_weights.append(weight)
+            all_styles.append(style)
+        return all_task_ids,all_weights,all_styles
 
+    
+    def calc_statistics(self,list_statistics:list):
+        """目前是从 rollout 中收集的 statistics"""
+        res= {}
+        for k,v in list_statistics[0].items():
+            res[k] = []
+        for data in list_statistics:
+            for k,v in data.items():
+                res[k].extend(v)
         
+        np.savez_compressed(os.path.join(self.model_path,"statistics.npz"),**res)
+        return res 
 
         

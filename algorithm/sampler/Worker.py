@@ -54,7 +54,7 @@ class Worker(object):
         self.style_list = [np.array([1.0 for _ in range(self.style_dim)])]
         self.task_id_list = [0]
     
-    def get_tasks(self,task_id,weight_list,style_list):
+    def get_tasks(self,task_id,weight_list,style_list,):
         self.task_id_list = task_id
         self.weight_list = weight_list
         self.style_list = style_list
@@ -71,6 +71,12 @@ class Worker(object):
         self.done = done 
         self.state = next_state
         return next_state,scalar_reward,reward_vec,done,info
+
+    def eval(self):
+        self.agent.sampler_method = 'greedy'
+    
+    def train(self):
+        self.agent.sampler_method = 'prob'
 
     def reset(self):
         #! 重新设定当前 reward weight
@@ -95,10 +101,10 @@ class Worker(object):
         style_state = self.agent.process_style(self.style_state)
         return state,style_state
 
-    def sample_one_traj(self):
+    def sample_one_traj(self,n_traj=1):
         memory = []
         num_steps = 0
-        while num_steps < self.max_traj_len:
+        while num_steps < self.max_traj_len * n_traj:
             if self.done:
                 self._flush_statistics()
                 self.state,self.style_state,self.reward_weight = self.reset()
@@ -144,10 +150,11 @@ class Worker(object):
         
         return memory, self.get_statistics()
     def _flush_statistics(self):
-        self.episode_length_list.append(self.episode_length)
-        self.episode_reward_list.append(self.episode_reward)
-        self.episode_reward_vec_list.append(self.episode_reward_vec)
-        self.episode_task_id.append(self.task_id)
+        if self.episode_length > 0:
+            self.episode_length_list.append(self.episode_length)
+            self.episode_reward_list.append(self.episode_reward)
+            self.episode_reward_vec_list.append(self.episode_reward_vec)
+            self.episode_task_id.append(self.task_id)
 
         self.episode_reward = 0
         self.episode_reward_vec = np.zeros(shape=(self.style_dim,))

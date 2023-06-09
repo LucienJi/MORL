@@ -1,5 +1,5 @@
 from algorithm.learner.models.mas_policy import PolicyNet
-from algorithm.learner.model_utils import load_script_model,serialize_model
+from algorithm.learner.model_utils import deserialize_model,serialize_model
 import torch as th
 import mo_gymnasium as mo_gym
 import numpy as np 
@@ -32,6 +32,12 @@ class PPO_Learner:
         self.net = PolicyNet(self.obs_dim,self.act_dim,self.style_dim)
         self.optimizer = th.optim.Adam(self.net.parameters(),lr = self.lr)
 
+        if configs['load_model']:
+            self.load_model()
+        if configs['device'] == 'cuda':
+            self.net.cuda()
+        self.device = configs['device']
+
         #! Date Part
         self.training_set = buffer
         
@@ -43,6 +49,12 @@ class PPO_Learner:
         if not os.path.exists(path):
             os.makedirs(path)
         serialize_model(self.net,path,self.name)
+    
+    def load_model(self,path = None):
+        if path is None:
+            path = self.model_path
+        if os.path.exists(os.path.join(path,self.name)):
+            self.net = deserialize_model(path,self.name)
     
     def update(self,training_batch):
         """
